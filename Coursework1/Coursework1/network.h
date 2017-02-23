@@ -22,6 +22,8 @@ public:
 	Network(int inputSize, int hiddenNodesCount);
 	//utils
 	void outputWeights();
+	void forwardPass(vector<float> inputRow);
+	void backwardPass(vector<float> inputRow);
 	void run(vector<vector<float>> inputData, int passes);
 	void runOnce(vector<vector<float>> inputData, int loopCounter, bool createOutput);
 	void getOutput(vector<vector<float>> inputData);

@@ -14,14 +14,16 @@ using namespace std;
 
 vector<vector<float>> inputData;
 vector<Network> networkList;
-int inputSize = 6;
+int inputSize = 5;
 int hiddenNodesCount;
 unsigned int passes;
+string inputfile = "C:\\Users\\cgpw\\Desktop\\AI-Project\\Data\\CWDataStudentShort.csv";
+//string inputfile = "D:\\Work\\Part C\\Advanced AI\\Project\\Data\\CWDataStudentShort.csv";
 
 void readCSV()
 {
 	string line;
-	ifstream csv("D:\\Work\\Part C\\Advanced AI\\Project\\Data\\CWDataStudentShort.csv");
+	ifstream csv(inputfile);
 	bool error = false;
 	float i;
 	if (csv.is_open())
@@ -222,6 +224,10 @@ int main()
 				Network network(inputSize, hiddenNodesCount);
 				for (unsigned int i = 0; i < passes; i++)
 				{
+					if (passes % 500 == 0)
+					{
+						cout << "Simulation running, " << passes << " passes complete." << endl;
+					}
 					if (i == passes - 1)
 					{
 						network.runOnce(getDataset(inputData, 0.6f)[0], i, true);

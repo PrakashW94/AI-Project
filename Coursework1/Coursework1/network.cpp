@@ -105,10 +105,10 @@ Node Network::getNodeById(int id)
 	return nodeList[id - 1];
 }
 
+//for each row in a given dataset, calculate a predicted output and output it
 void Network::getOutput(vector<vector<float>> inputData)
 {
 	vector<float> predictedOutputAccuracy;
-
 	int rowId = 1;
 
 	ofstream outputFile;
@@ -117,51 +117,20 @@ void Network::getOutput(vector<vector<float>> inputData)
 
 	for (vector<float> row : inputData)
 	{
-		//set input node values
-		for (int i = 1; i <= inputNodesCount; i++)
-		{
-			nodeList[i - 1].setNodeOutput(row[i - 1]);
-		}
-
-		//store correct output
-		float correctOutput = row.back();
-
-		//initialise loop variables
-		int inputNodesLower = 1;
-		int inputNodesUpper = inputNodesCount;
-		int hiddenNodesLower = inputNodesCount + 1;
-		int hiddenNodesUpper = inputNodesCount + hiddenNodesCount;
-
-		//calculate hidden node outputs
-		for (int j = hiddenNodesLower; j <= hiddenNodesUpper; j++)
-		{
-			float hiddenNodeValue = 0;
-			for (int i = inputNodesLower; i <= inputNodesUpper; i++)
-			{
-				hiddenNodeValue += getNodeById(i).getNodeOutput() * weightsMatrix[i][j];
-			}
-			hiddenNodeValue += getNodeById(j).getBias() * weightsMatrix[0][j];
-			nodeList[j - 1].setNodeOutput(hiddenNodeValue);
-		}
-
-		//calculate output
-		float output = 0;
-		int outputNodeId = inputNodesCount + hiddenNodesCount + 1;
-		for (int i = hiddenNodesLower; i <= hiddenNodesUpper; i++)
-		{
-			output += getNodeById(i).getNodeOutput() * weightsMatrix[i][outputNodeId];
-		}
-		output += getNodeById(outputNodeId).getBias() * weightsMatrix[0][outputNodeId];
-		nodeList[outputNodeId - 1].setNodeOutput(output);
+		forwardPass(row);
 
 		//output results
-		outputFile << rowId << ", " << getNodeById(outputNodeId).getNodeOutput() << ", " << correctOutput << endl;
-		predictedOutputAccuracy.push_back(correctOutput - getNodeById(outputNodeId).getNodeOutput());
+		int outputNodeId = inputNodesCount + hiddenNodesCount + 1;
+		float correctOutput = row.back();
+		outputFile << rowId << ", " << getNodeById(outputNodeId).nodeOutput << ", " << correctOutput << endl;
+		predictedOutputAccuracy.push_back(correctOutput - getNodeById(outputNodeId).nodeOutput);
 		rowId++;
 		accuracyMatrix.push_back(predictedOutputAccuracy);
 	}
 }
 
+//run for a single pass, loop is controlled externally
+//allows for different(varying) datasets to be passed in
 void Network::runOnce(vector<vector<float>> inputData, int loopCounter, bool createOutput)
 {
 	int rowId = 1;
@@ -174,81 +143,101 @@ void Network::runOnce(vector<vector<float>> inputData, int loopCounter, bool cre
 
 	for (vector<float> row : inputData)
 	{
-		//set input node values
-		for (int i = 1; i <= inputNodesCount; i++)
-		{
-			nodeList[i - 1].setNodeOutput(row[i - 1]);
-		}
-
-		//store correct output
-		float correctOutput = row.back();
-
-		//initialise loop variables
-		int inputNodesLower = 1;
-		int inputNodesUpper = inputNodesCount;
-		int hiddenNodesLower = inputNodesCount + 1;
-		int hiddenNodesUpper = inputNodesCount + hiddenNodesCount;
-
-		//calculate hidden node outputs
-		for (int j = hiddenNodesLower; j <= hiddenNodesUpper; j++)
-		{
-			float hiddenNodeValue = 0;
-			for (int i = inputNodesLower; i <= inputNodesUpper; i++)
-			{
-				hiddenNodeValue += getNodeById(i).getNodeOutput() * weightsMatrix[i][j];
-			}
-			hiddenNodeValue += getNodeById(j).getBias() * weightsMatrix[0][j];
-			nodeList[j - 1].setNodeOutput(hiddenNodeValue);
-		}
-
-		//calculate output
-		float output = 0;
-		int outputNodeId = inputNodesCount + hiddenNodesCount + 1;
-		for (int i = hiddenNodesLower; i <= hiddenNodesUpper; i++)
-		{
-			output += getNodeById(i).getNodeOutput() * weightsMatrix[i][outputNodeId];
-		}
-		output += getNodeById(outputNodeId).getBias() * weightsMatrix[0][outputNodeId];
-		nodeList[outputNodeId - 1].setNodeOutput(output);
-
-		//backward pass
-		//output node
-		nodeList[outputNodeId - 1].setDeltaOutput(correctOutput);
-
-		//hidden nodes
-		for (int i = hiddenNodesLower; i <= hiddenNodesUpper; i++)
-		{
-			nodeList[i - 1].setDeltaHidden(weightsMatrix[i][outputNodeId], getNodeById(outputNodeId).getDelta());
-		}
-
-		//update weights
-		//input layer -> hidden layer
-		for (int i = inputNodesLower; i <= inputNodesUpper; i++)
-		{
-			for (int j = hiddenNodesLower; j <= hiddenNodesUpper; j++)
-			{
-				weightsMatrix[i][j] = weightsMatrix[i][j] + (stepParameter * getNodeById(j).getDelta() * getNodeById(i).getNodeOutput());
-			}
-		}
-
-		//hidden layer -> output layer
-		for (int i = hiddenNodesLower; i <= hiddenNodesUpper; i++)
-		{
-			weightsMatrix[i][outputNodeId] = weightsMatrix[i][outputNodeId] + (stepParameter * getNodeById(outputNodeId).getDelta() * getNodeById(i).getNodeOutput());
-		}
-
-		//bias weights
-		for (int i = hiddenNodesLower; i <= outputNodeId; i++)
-		{
-			weightsMatrix[0][i] = weightsMatrix[0][i] + (stepParameter * getNodeById(i).getDelta() * getNodeById(i).getBias());
-		}
+		forwardPass(row);
+		backwardPass(row);
 
 		//output results
 		if (createOutput)
-		{
-			outputFile << loopCounter << ", " << rowId << ", " << getNodeById(outputNodeId).getNodeOutput() << ", " << correctOutput << endl;
+		{//createOutput is set on the final pass through
+			int outputNodeId = inputNodesCount + hiddenNodesCount + 1;
+			float correctOutput = row.back();
+			outputFile << loopCounter << ", " << rowId << ", " << getNodeById(outputNodeId).nodeOutput << ", " << correctOutput << endl;
 		}
 		rowId++;
+	}
+}
+
+//forward pass for single row of data
+void Network::forwardPass(vector<float> inputRow)
+{
+	//set input node values
+	for (int i = 1; i <= inputNodesCount; i++)
+	{
+		nodeList[i - 1].setNodeOutput(inputRow[i - 1]);
+	}
+
+	//initialise loop variables
+	int inputNodesLower = 1;
+	int inputNodesUpper = inputNodesCount;
+	int hiddenNodesLower = inputNodesCount + 1;
+	int hiddenNodesUpper = inputNodesCount + hiddenNodesCount;
+	int outputNodeId = inputNodesCount + hiddenNodesCount + 1;
+
+	//calculate hidden node outputs
+	for (int j = hiddenNodesLower; j <= hiddenNodesUpper; j++)
+	{
+		float hiddenNodeValue = 0;
+		for (int i = inputNodesLower; i <= inputNodesUpper; i++)
+		{
+			hiddenNodeValue += getNodeById(i).nodeOutput * weightsMatrix[i][j];
+		}
+		hiddenNodeValue += getNodeById(j).bias * weightsMatrix[0][j];
+		nodeList[j - 1].setNodeOutput(hiddenNodeValue);
+	}
+
+	//calculate output
+	float output = 0;
+	
+	for (int i = hiddenNodesLower; i <= hiddenNodesUpper; i++)
+	{
+		output += getNodeById(i).nodeOutput * weightsMatrix[i][outputNodeId];
+	}
+	output += getNodeById(outputNodeId).bias * weightsMatrix[0][outputNodeId];
+	nodeList[outputNodeId - 1].setNodeOutput(output);
+}
+
+void Network::backwardPass(vector<float> inputRow)
+{
+	//initialise loop variables
+	int inputNodesLower = 1;
+	int inputNodesUpper = inputNodesCount;
+	int hiddenNodesLower = inputNodesCount + 1;
+	int hiddenNodesUpper = inputNodesCount + hiddenNodesCount;
+	int outputNodeId = inputNodesCount + hiddenNodesCount + 1;
+	
+	//store correct output
+	float correctOutput = inputRow.back();
+	
+	//backward pass
+	//output node
+	nodeList[outputNodeId - 1].setDeltaOutput(correctOutput);
+
+	//hidden nodes
+	for (int i = hiddenNodesLower; i <= hiddenNodesUpper; i++)
+	{
+		nodeList[i - 1].setDeltaHidden(weightsMatrix[i][outputNodeId], getNodeById(outputNodeId).delta);
+	}
+
+	//update weights
+	//input layer -> hidden layer
+	for (int i = inputNodesLower; i <= inputNodesUpper; i++)
+	{
+		for (int j = hiddenNodesLower; j <= hiddenNodesUpper; j++)
+		{
+			weightsMatrix[i][j] = weightsMatrix[i][j] + (stepParameter * getNodeById(j).delta * getNodeById(i).nodeOutput);
+		}
+	}
+
+	//hidden layer -> output layer
+	for (int i = hiddenNodesLower; i <= hiddenNodesUpper; i++)
+	{
+		weightsMatrix[i][outputNodeId] = weightsMatrix[i][outputNodeId] + (stepParameter * getNodeById(outputNodeId).delta * getNodeById(i).nodeOutput);
+	}
+
+	//bias weights
+	for (int i = hiddenNodesLower; i <= outputNodeId; i++)
+	{
+		weightsMatrix[0][i] = weightsMatrix[0][i] + (stepParameter * getNodeById(i).delta * getNodeById(i).bias);
 	}
 }
 
@@ -270,81 +259,17 @@ void Network::run(vector<vector<float>> inputData, int desiredPasses)
 		int rowId = 1;
 		for (vector<float> row : inputData)
 		{
-			//set input node values
-			for (int i = 1; i <= inputNodesCount; i++)
-			{
-				nodeList[i - 1].setNodeOutput(row[i - 1]);
-			}
+			forwardPass(row);
+			backwardPass(row);
 
-			//store correct output
-			float correctOutput = row.back();
-
-			//initialise loop variables
-			int inputNodesLower = 1;
-			int inputNodesUpper = inputNodesCount;
-			int hiddenNodesLower = inputNodesCount + 1;
-			int hiddenNodesUpper = inputNodesCount + hiddenNodesCount;
-
-			//calculate hidden node outputs
-			for (int j = hiddenNodesLower; j <= hiddenNodesUpper; j++)
-			{
-				float hiddenNodeValue = 0;
-				for (int i = inputNodesLower; i <= inputNodesUpper; i++)
-				{
-					hiddenNodeValue += getNodeById(i).getNodeOutput() * weightsMatrix[i][j];
-				}
-				hiddenNodeValue += getNodeById(j).getBias() * weightsMatrix[0][j];
-				nodeList[j - 1].setNodeOutput(hiddenNodeValue);
-			}
-
-			//calculate output
-			float output = 0;
 			int outputNodeId = inputNodesCount + hiddenNodesCount + 1;
-			for (int i = hiddenNodesLower; i <= hiddenNodesUpper; i++)
-			{
-				output += getNodeById(i).getNodeOutput() * weightsMatrix[i][outputNodeId];
-			}
-			output += getNodeById(outputNodeId).getBias() * weightsMatrix[0][outputNodeId];
-			nodeList[outputNodeId - 1].setNodeOutput(output);
-
-			//backward pass
-			//output node
-			nodeList[outputNodeId - 1].setDeltaOutput(correctOutput);
-
-			//hidden nodes
-			for (int i = hiddenNodesLower; i <= hiddenNodesUpper; i++)
-			{
-				nodeList[i - 1].setDeltaHidden(weightsMatrix[i][outputNodeId], getNodeById(outputNodeId).getDelta());
-			}
-
-			//update weights
-			//input layer -> hidden layer
-			for (int i = inputNodesLower; i <= inputNodesUpper; i++)
-			{
-				for (int j = hiddenNodesLower; j <= hiddenNodesUpper; j++)
-				{
-					weightsMatrix[i][j] = weightsMatrix[i][j] + (stepParameter * getNodeById(j).getDelta() * getNodeById(i).getNodeOutput());
-				}
-			}
-
-			//hidden layer -> output layer
-			for (int i = hiddenNodesLower; i <= hiddenNodesUpper; i++)
-			{
-				weightsMatrix[i][outputNodeId] = weightsMatrix[i][outputNodeId] + (stepParameter * getNodeById(outputNodeId).getDelta() * getNodeById(i).getNodeOutput());
-			}
-
-			//bias weights
-			for (int i = hiddenNodesLower; i <= outputNodeId; i++)
-			{
-				weightsMatrix[0][i] = weightsMatrix[0][i] + (stepParameter * getNodeById(i).getDelta() * getNodeById(i).getBias());
-			}
-
+			float correctOutput = row.back();
 			//output results
 			if (loop % 500 == 0)
 			{
-				outputFile << loop << ", " << rowId << ", " << getNodeById(outputNodeId).getNodeOutput() << ", " << correctOutput << endl;
+				outputFile << loop << ", " << rowId << ", " << getNodeById(outputNodeId).nodeOutput << ", " << correctOutput << endl;
 			}
-			predictedOutputAccuracy.push_back(correctOutput - getNodeById(outputNodeId).getNodeOutput());
+			predictedOutputAccuracy.push_back(correctOutput - getNodeById(outputNodeId).nodeOutput);
 			rowId++;
 		}
 		accuracyMatrix.push_back(predictedOutputAccuracy);

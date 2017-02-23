@@ -8,26 +8,6 @@ Node::Node(int id, int type, int inputSize)
 	bias = 1;
 }
 
-int Node::getId()
-{
-	return nodeId;
-}
-
-int Node::getNodeType()
-{
-	return nodeType;
-}
-
-float Node::getBias()
-{
-	return bias;
-}
-
-float Node::getNodeOutput()
-{
-	return nodeOutput;
-}
-
 void Node::setNodeOutput(float value)
 {
 	if (nodeType == 1)
@@ -38,11 +18,6 @@ void Node::setNodeOutput(float value)
 	{
 		nodeOutput = 1 / float(1 + exp(-value));
 	}
-}
-
-float Node::getDelta()
-{
-	return delta;
 }
 
 void Node::setDeltaOutput(float correctValue)
