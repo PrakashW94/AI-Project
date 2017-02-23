@@ -265,7 +265,7 @@ void Network::run(vector<vector<float>> inputData, int desiredPasses)
 			int outputNodeId = inputNodesCount + hiddenNodesCount + 1;
 			float correctOutput = row.back();
 			//output results
-			if (loop % 500 == 0)
+			if (loop+1 % 500 == 0)
 			{
 				outputFile << loop << ", " << rowId << ", " << getNodeById(outputNodeId).nodeOutput << ", " << correctOutput << endl;
 			}
