@@ -23,6 +23,8 @@ public:
 	//utils
 	void outputWeights();
 	void run(vector<vector<float>> inputData, int passes);
+	void runOnce(vector<vector<float>> inputData, int loopCounter, bool createOutput);
+	void getOutput(vector<vector<float>> inputData);
 	Node getNodeById(int id); //should only be used for read!
 	void outputResults();
 	void setId(int id);
