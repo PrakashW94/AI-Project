@@ -5,8 +5,7 @@
 #include <vector>
 #include <stdlib.h>
 #include <time.h>
-#include <algorithm>
-#include <iterator>
+
 
 #include "network.h"
 
@@ -14,17 +13,16 @@ using namespace std;
 
 vector<vector<float>> inputData;
 vector<Network> networkList;
-int inputSize = 6;
+int inputSize;
 int hiddenNodesCount;
 unsigned int passes;
-string inputfile = "C:\\Users\\cgpw\\Desktop\\AI-Project\\Data\\CWDataStudentClean.csv";
-//string inputfile = "D:\\Work\\Part C\\Advanced AI\\Project\\Data\\CWDataStudentShort.csv";
+//string inputfile = "C:\\Users\\cgpw\\Desktop\\AI-Project\\Data\\CWDataStudentClean.csv";
+string inputfile = "D:\\Work\\Part C\\Advanced AI\\Project\\Data\\CWDataStudentClean.csv";
 
 void readCSV()
 {
 	string line;
 	ifstream csv(inputfile);
-	bool error = false;
 	float i;
 	if (csv.is_open())
 	{
@@ -34,45 +32,22 @@ void readCSV()
 		{
 			stringstream ss(line);
 			vector<float> row;
-			error = false;
-			while (ss >> i && !error)
+			while (ss >> i)
 			{
-				if (i == -999)
+				row.push_back(i);
+				if (ss.peek() == ',')
 				{
-					error = true;
-				}
-				else
-				{
-					row.push_back(i);
-
-					if (ss.peek() == ',')
-					{
-						ss.ignore();
-					}
+					ss.ignore();
 				}
 			}
-			if (row.size() == inputSize + 1)
-			{
-				inputData.push_back(row);
-			}
+			inputData.push_back(row);
 		}
 		csv.close();
+		inputSize = inputData.back().size() - 1;
 	}
 	else
 	{
 		cout << "Cannot open file!" << endl << endl;
-	}
-}
-
-void printData()
-{
-	for (vector<float> row : inputData)
-	{
-		for (float i : row)
-		{
-			cout << i << ",";
-		}
-		cout << endl;
 	}
 }
 
@@ -125,11 +100,7 @@ void buildMenu()
 	vector<string> commands =
 	{
 		"Read in and standardise data",
-		"Run Neural Network Simulation (All Data)",
-		"Run Neural Network Simulation (60% Data (different for each pass))",
-		"Run Neural Network Simulation (60% Data (same for each pass))",
-		"Flush stored input data",
-		"Save network to file"
+		"Run Neural Network Simulation"
 	};
 	int commandCount = commands.size();
 
@@ -143,42 +114,7 @@ void buildMenu()
 	cout << "-1. Quit" << endl;
 }
 
-vector<vector<vector<float>>> getDataset(vector<vector<float>> inputData, float trainingRatio)
-{
-	vector<vector<vector<float>>> result;
-	vector<vector<float>> trainingData;
-	vector<vector<float>> validationData;
-	unsigned int trainingSize = (int)(inputData.size() * trainingRatio);
-	unsigned int validationSize = inputData.size() - trainingSize;
-	vector<int> trainingIndex;
-	vector<int> validationIndex;
-	for (unsigned int i = 0; i < trainingSize; i++)
-	{
-		int index = rand()%(inputData.size()-1 - 0 + 1) + 0;
-		while( find(trainingIndex.begin(), trainingIndex.end(), index) != trainingIndex.end())
-		{ 
-			index = rand() % (inputData.size()-1 - 0 + 1) + 0;
-		}
-		trainingIndex.push_back(index);
-		trainingData.push_back(inputData[index]);
-	}
-	vector<int> allIndex;
-	for (unsigned int i = 0; i < inputData.size(); i++)
-	{
-		allIndex.push_back(i);
-	}
 
-	sort(trainingIndex.begin(), trainingIndex.end());
-	set_difference(allIndex.begin(), allIndex.end(), trainingIndex.begin(), trainingIndex.end(), std::inserter(validationIndex, validationIndex.begin()));
-
-	for (unsigned int i = 0; i < validationSize; i++)
-	{
-		validationData.push_back(inputData[validationIndex[i]]);
-	}
-	result.push_back(trainingData);
-	result.push_back(validationData);
-	return result;
-}
 
 int main()
 {
@@ -192,7 +128,7 @@ int main()
 
 		switch (menu)
 		{
-			case 1:
+			case 1: //read csv and standardise
 			{
 				readCSV();
 				standardiseData();
@@ -200,21 +136,26 @@ int main()
 			}
 
 			case 2:
-			{
+			{//train network
+				int trainingType;
+				cout << endl << "Select training method:" << endl << endl;
+				cout << "1. Static 60/20/20." << endl;
+				cout << "2. K-fold Cross Validation (To do)" << endl;
+				cin >> trainingType;
+
 				cout << endl << "Enter the number of hidden nodes to be used." << endl;
 				cin >> hiddenNodesCount;
 				cout << endl << "Enter the number of passes the network should make." << endl;
 				cin >> passes;
 
 				Network network(inputSize, hiddenNodesCount);
-				network.run(inputData, passes);
-				network.getOutput(inputData);
-				network.outputResults();
+
+				network.selectTraining(trainingType, inputData, passes);
 				network.setId(networkList.size());
 				networkList.push_back(network);
 				break;
 			}
-
+			/*
 			case 3: 
 			{
 				cout << endl << "Enter the number of hidden nodes to be used." << endl;
@@ -295,7 +236,7 @@ int main()
 				cout << "Selected network (Id = " << selectedNetwork << ") saved as " << filename << ".csv." << endl << endl;
 				break;
 			}
-
+			*/
 			case -1:
 			{
 				return 0;

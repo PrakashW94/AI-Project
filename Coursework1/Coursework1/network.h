@@ -16,20 +16,19 @@ public:
 	float stepParameter = float(0.1);
 	vector<Node> nodeList;
 	vector <vector<float>> weightsMatrix;
-	vector <vector<float>> accuracyMatrix;
 
 	//constructor
 	Network(int inputSize, int hiddenNodesCount);
-	//utils
 	void outputWeights();
+	void selectTraining(int type, vector<vector<float>> inputData, int passes);
 	void forwardPass(vector<float> inputRow);
 	void backwardPass(vector<float> inputRow);
-	void run(vector<vector<float>> inputData, int passes);
+	//void run(vector<vector<float>> inputData, int passes);
 	void runOnce(vector<vector<float>> inputData, int loopCounter, bool createOutput);
-	void getOutput(vector<vector<float>> inputData);
+	void getOutput(vector<vector<float>> inputData, bool createOutput);
 	Node getNodeById(int id); //should only be used for read!
 	void outputResults();
 	void setId(int id);
-	void calculateAccuracy();
+	void calculateAccuracy(vector<float> accuracyMatrix);
 	void save(string filename);
 };
