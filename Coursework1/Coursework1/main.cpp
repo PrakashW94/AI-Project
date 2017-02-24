@@ -16,8 +16,8 @@ vector<Network> networkList;
 int inputSize;
 int hiddenNodesCount;
 unsigned int passes;
-//string inputfile = "C:\\Users\\cgpw\\Desktop\\AI-Project\\Data\\CWDataStudentClean.csv";
-string inputfile = "D:\\Work\\Part C\\Advanced AI\\Project\\Data\\CWDataStudentClean.csv";
+string inputfile = "C:\\Users\\cgpw\\Desktop\\AI-Project\\Data\\CWDataStudentClean.csv";
+//string inputfile = "D:\\Work\\Part C\\Advanced AI\\Project\\Data\\CWDataStudentClean.csv";
 
 void readCSV()
 {
@@ -114,8 +114,6 @@ void buildMenu()
 	cout << "-1. Quit" << endl;
 }
 
-
-
 int main()
 {
 	srand( unsigned int (time(NULL)));
@@ -145,14 +143,25 @@ int main()
 
 				cout << endl << "Enter the number of hidden nodes to be used." << endl;
 				cin >> hiddenNodesCount;
-				cout << endl << "Enter the number of passes the network should make." << endl;
+				cout << endl << "Enter the maximum number of passes the network should make." << endl;
 				cin >> passes;
 
-				Network network(inputSize, hiddenNodesCount);
+				for (unsigned int i = 0; i < 5; i++)
+				{
+					Network network(inputSize, hiddenNodesCount);
+					network.selectTraining(trainingType, inputData, passes);
+					network.setId(networkList.size());
+					networkList.push_back(network);
+				}
 
-				network.selectTraining(trainingType, inputData, passes);
-				network.setId(networkList.size());
-				networkList.push_back(network);
+				for (Network network : networkList)
+				{
+					cout << "Network Id: " << network.networkId << endl;
+					cout << "Number of input nodes: " << network.inputNodesCount << endl;
+					cout << "Number of hidden nodes: " << network.hiddenNodesCount << endl;
+					cout << "Passes: " << network.passes << endl;
+					cout << "Accuracy: " << network.accuracy << endl << endl;
+				}
 				break;
 			}
 			/*

@@ -25,6 +25,8 @@ Network::Network(int iNodesCount, int hNodesCount)
 
 	inputNodesCount = iNodesCount;
 	hiddenNodesCount = hNodesCount;
+	accuracy = 1;
+
 	//create input nodes
 	//id is 1 to inputNodesCount (inclusive)
 	//type is 1
@@ -159,27 +161,32 @@ void Network::selectTraining(int type, vector<vector<float>> inputData, int desi
 		{
 			vector<vector<vector<float>>> inputDataSet = splitInputData(inputData);
 			passes = desiredPasses;
+			float pastAcc;
 			ofstream accTest;
 			accTest.open("acctest.csv");
 			accTest << "pass,msqer" << endl;
 			for (int i = 1; i <= passes; i++)
 			{
-				if (i % 500 == 0)
+				if (i % 100 == 0)
 				{
-					cout << "Simulation running, " << i << " passes complete." << endl;
+					pastAcc = accuracy;
+					getOutput(inputDataSet[1], false);
+					accTest << i << ", " << accuracy << endl;
+					cout << "Simulation running... " << endl << "Passes complete: " << i << endl << "Accuracy on validation set: " << accuracy << endl << endl;
+					if (pastAcc < accuracy)
+					{
+						cout << "Found minimum! Terminating network training..." << endl << endl;
+						passes = i;
+					}
 				}
 				if (i == passes)
 				{//if last pass, create output files
-					runOnce(inputDataSet[0], i, true);
 					getOutput(inputDataSet[1], true);
 				}
 				else
 				{
 					runOnce(inputDataSet[0], i, false);
-					getOutput(inputDataSet[1], false);
 				}
-				
-				accTest << i << ", " << accuracy << endl;
 			}
 			accTest.close();
 			cout << "Simulation Complete. " << endl;
