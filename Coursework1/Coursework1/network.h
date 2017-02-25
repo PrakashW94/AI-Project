@@ -20,12 +20,12 @@ public:
 	//constructor
 	Network(int inputSize, int hiddenNodesCount);
 	void outputWeights();
-	void selectTraining(int type, vector<vector<float>> inputData, int passes);
+	void selectTraining(int type, vector<vector<vector<float>>> inputData, int desiredPasses, int networkCount);
 	void forwardPass(vector<float> inputRow);
 	void backwardPass(vector<float> inputRow);
 	//void run(vector<vector<float>> inputData, int passes);
 	void runOnce(vector<vector<float>> inputData, int loopCounter, bool createOutput);
-	void getOutput(vector<vector<float>> inputData, bool createOutput);
+	void getOutput(vector<vector<float>> inputData, bool createOutput, string fileName = "output2");
 	Node getNodeById(int id); //should only be used for read!
 	void outputResults();
 	void setId(int id);

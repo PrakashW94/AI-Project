@@ -6,7 +6,6 @@
 #include <stdlib.h>
 #include <time.h>
 #include <algorithm>
-#include <iterator>
 
 #include "network.h"
 
@@ -86,80 +85,19 @@ Network::Network(int iNodesCount, int hNodesCount)
 		weightsMatrix[0][i] = randomGen(inputNodesCount);
 	}
 
-	cout << endl << "Network Initialised." << endl;
+	//cout << endl << "Network Initialised with "<< hiddenNodesCount << " hidden nodes." << endl;
 }
 
 //calculate the number of rows needed in each dataset 
 //for each set, loop until you've filled the set
 //taking a random index out of the index file in each pass
-vector<vector<vector<float>>> splitInputData(vector<vector<float>> inputData)
-{
-	float trainingRatio = 0.6f;
-	//initialise output vectors
-	vector<vector<vector<float>>> result;
-	vector<vector<float>> trainingData;
-	vector<vector<float>> validationData;
-	vector<vector<float>> testData;
 
-	//initialise set sizes
-	unsigned int trainingSize = (int)(inputData.size() * trainingRatio);
-	unsigned int validationSize = (int)((inputData.size() - trainingSize)/(float)2);
-	unsigned int testSize = validationSize;
-
-	//initialise index
-	int index;
-
-	//initialise index vector
-	vector<int> allIndex;
-	for (unsigned int i = 0; i < inputData.size(); i++)
-	{
-		allIndex.push_back(i);
-	}
-
-	//fill training set
-	for (unsigned int i = 0; i < trainingSize; i++)
-	{
-		random_shuffle(allIndex.begin(), allIndex.end());
-		index = allIndex.back();
-		allIndex.pop_back();
-				
-		trainingData.push_back(inputData[index]);
-	}
-
-	//fill validation set
-	for (unsigned int i = 0; i < validationSize; i++)
-	{
-		random_shuffle(allIndex.begin(), allIndex.end());
-		index = allIndex.back();
-		allIndex.pop_back();
-		
-		validationData.push_back(inputData[index]);
-	}
-
-	//fill test set
-	for (unsigned int i = 0; i < testSize; i++)
-	{
-		random_shuffle(allIndex.begin(), allIndex.end());
-		index = allIndex.back();
-		allIndex.pop_back();
-
-		testData.push_back(inputData[index]);
-	}
-
-	//add all output vectors to one to be returned
-	result.push_back(trainingData);
-	result.push_back(validationData);
-	result.push_back(testData);
-	return result;
-}
-
-void Network::selectTraining(int type, vector<vector<float>> inputData, int desiredPasses)
+void Network::selectTraining(int type, vector<vector<vector<float>>> inputDataSet, int desiredPasses, int networkCount)
 {
 	switch (type)
 	{
 		case 1: //Split 60/20/20
 		{
-			vector<vector<vector<float>>> inputDataSet = splitInputData(inputData);
 			passes = desiredPasses;
 			float pastAcc;
 			ofstream accTest;
@@ -172,16 +110,17 @@ void Network::selectTraining(int type, vector<vector<float>> inputData, int desi
 					pastAcc = accuracy;
 					getOutput(inputDataSet[1], false);
 					accTest << i << ", " << accuracy << endl;
-					cout << "Simulation running... " << endl << "Passes complete: " << i << endl << "Accuracy on validation set: " << accuracy << endl << endl;
+					//cout << "Simulation running... " << endl << "Passes complete: " << i << endl << "Accuracy on validation set: " << accuracy << endl << endl;
 					if (pastAcc < accuracy)
 					{
-						cout << "Found minimum! Terminating network training..." << endl << endl;
+						//cout << "Found minimum! Terminating network training..." << endl << endl;
 						passes = i;
 					}
 				}
 				if (i == passes)
 				{//if last pass, create output files
-					getOutput(inputDataSet[1], true);
+					string filename = "network" + to_string(networkCount) + to_string(hiddenNodesCount);
+					getOutput(inputDataSet[1], true, filename);
 				}
 				else
 				{
@@ -189,7 +128,7 @@ void Network::selectTraining(int type, vector<vector<float>> inputData, int desi
 				}
 			}
 			accTest.close();
-			cout << "Simulation Complete. " << endl;
+			//cout << "Simulation Complete. " << endl;
 			break;
 		}
 
@@ -228,7 +167,7 @@ Node Network::getNodeById(int id)
 }
 
 //for each row in a given dataset, calculate a predicted output and output it
-void Network::getOutput(vector<vector<float>> inputData, bool createOutput)
+void Network::getOutput(vector<vector<float>> inputData, bool createOutput, string fileName)
 {
 	vector<float> predictedOutputAccuracy;
 	int rowId = 1;
@@ -236,7 +175,8 @@ void Network::getOutput(vector<vector<float>> inputData, bool createOutput)
 	ofstream outputFile;
 	if (createOutput)
 	{
-		outputFile.open("output2.csv");
+		string fullFileName = "output/" + fileName + ".csv";
+		outputFile.open(fullFileName);
 		outputFile << "Row, Predicted, Correct" << endl;
 	}
 

@@ -5,7 +5,7 @@
 #include <vector>
 #include <stdlib.h>
 #include <time.h>
-
+#include <algorithm>
 
 #include "network.h"
 
@@ -14,10 +14,9 @@ using namespace std;
 vector<vector<float>> inputData;
 vector<Network> networkList;
 int inputSize;
-int hiddenNodesCount;
 unsigned int passes;
-string inputfile = "C:\\Users\\cgpw\\Desktop\\AI-Project\\Data\\CWDataStudentClean.csv";
-//string inputfile = "D:\\Work\\Part C\\Advanced AI\\Project\\Data\\CWDataStudentClean.csv";
+//string inputfile = "C:\\Users\\cgpw\\Desktop\\AI-Project\\Data\\CWDataStudentClean.csv";
+string inputfile = "D:\\Work\\Part C\\Advanced AI\\Project\\Data\\CWDataStudentClean.csv";
 
 void readCSV()
 {
@@ -114,6 +113,67 @@ void buildMenu()
 	cout << "-1. Quit" << endl;
 }
 
+vector<vector<vector<float>>> splitInputData(vector<vector<float>> inputData)
+{
+	float trainingRatio = 0.6f;
+	//initialise output vectors
+	vector<vector<vector<float>>> result;
+	vector<vector<float>> trainingData;
+	vector<vector<float>> validationData;
+	vector<vector<float>> testData;
+
+	//initialise set sizes
+	unsigned int trainingSize = (int)(inputData.size() * trainingRatio);
+	unsigned int validationSize = (int)((inputData.size() - trainingSize) / (float)2);
+	unsigned int testSize = validationSize;
+
+	//initialise index
+	int index;
+
+	//initialise index vector
+	vector<int> allIndex;
+	for (unsigned int i = 0; i < inputData.size(); i++)
+	{
+		allIndex.push_back(i);
+	}
+
+	//fill training set
+	for (unsigned int i = 0; i < trainingSize; i++)
+	{
+		random_shuffle(allIndex.begin(), allIndex.end());
+		index = allIndex.back();
+		allIndex.pop_back();
+
+		trainingData.push_back(inputData[index]);
+	}
+
+	//fill validation set
+	for (unsigned int i = 0; i < validationSize; i++)
+	{
+		random_shuffle(allIndex.begin(), allIndex.end());
+		index = allIndex.back();
+		allIndex.pop_back();
+
+		validationData.push_back(inputData[index]);
+	}
+
+	//fill test set
+	for (unsigned int i = 0; i < testSize; i++)
+	{
+		random_shuffle(allIndex.begin(), allIndex.end());
+		index = allIndex.back();
+		allIndex.pop_back();
+
+		testData.push_back(inputData[index]);
+	}
+
+	//add all output vectors to one to be returned
+	result.push_back(trainingData);
+	result.push_back(validationData);
+	result.push_back(testData);
+	return result;
+}
+
 int main()
 {
 	srand( unsigned int (time(NULL)));
@@ -141,27 +201,36 @@ int main()
 				cout << "2. K-fold Cross Validation (To do)" << endl;
 				cin >> trainingType;
 
-				cout << endl << "Enter the number of hidden nodes to be used." << endl;
+				unsigned int hiddenNodesCount;
+				cout << endl << "Enter the maximum number of hidden nodes to be used." << endl;
 				cin >> hiddenNodesCount;
 				cout << endl << "Enter the maximum number of passes the network should make." << endl;
 				cin >> passes;
 
-				for (unsigned int i = 0; i < 5; i++)
-				{
-					Network network(inputSize, hiddenNodesCount);
-					network.selectTraining(trainingType, inputData, passes);
-					network.setId(networkList.size());
-					networkList.push_back(network);
-				}
+				cout << endl;
 
+				vector<vector<vector<float>>> inputDataSet = splitInputData(inputData);
+				for (unsigned int i = 2; i <= hiddenNodesCount; i++)
+				{
+					cout << "Simulation running... training networks with " << i << " hidden nodes." << endl;
+					for (unsigned int j = 0; j < 20; j++)
+					{
+						Network network(inputSize, i);
+						network.selectTraining(trainingType, inputDataSet, passes, j);
+						network.setId(networkList.size());
+						networkList.push_back(network);
+					}
+				}
+				cout << endl << "Simulation Complete." << endl;
+
+				ofstream networkListOutput;
+				networkListOutput.open("networkoutput.csv");
+				networkListOutput << "NetworkId, FileId, hNodes, Passes, Accuracy" << endl;
 				for (Network network : networkList)
 				{
-					cout << "Network Id: " << network.networkId << endl;
-					cout << "Number of input nodes: " << network.inputNodesCount << endl;
-					cout << "Number of hidden nodes: " << network.hiddenNodesCount << endl;
-					cout << "Passes: " << network.passes << endl;
-					cout << "Accuracy: " << network.accuracy << endl << endl;
+					networkListOutput << network.networkId << ", " << network.networkId % 20 << network.hiddenNodesCount << ", " << network.hiddenNodesCount << ", " << network.passes << ", " << network.accuracy << endl;
 				}
+				networkListOutput.close();
 				break;
 			}
 			/*
