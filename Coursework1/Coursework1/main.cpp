@@ -6,6 +6,8 @@
 #include <stdlib.h>
 #include <time.h>
 #include <algorithm>
+#include <windows.h>
+#include <filesystem>
 
 #include "network.h"
 
@@ -16,7 +18,7 @@ vector<Network> networkList;
 int inputSize;
 unsigned int passes;
 //string inputfile = "C:\\Users\\cgpw\\Desktop\\AI-Project\\Data\\CWDataStudentClean.csv";
-string inputfile = "D:\\Work\\Part C\\Advanced AI\\Project\\Data\\CWDataStudentClean.csv";
+string inputfile = "D:\\Work\\Part C\\Advanced AI\\Project\\Data\\CWDataStudentCleanOld.csv";
 
 void readCSV()
 {
@@ -99,7 +101,8 @@ void buildMenu()
 	vector<string> commands =
 	{
 		"Read in and standardise data",
-		"Run Neural Network Simulation"
+		"Run Neural Network Simulation",
+		"Flush Networks"
 	};
 	int commandCount = commands.size();
 
@@ -113,7 +116,49 @@ void buildMenu()
 	cout << "-1. Quit" << endl;
 }
 
-vector<vector<vector<float>>> splitInputData(vector<vector<float>> inputData)
+vector<vector<vector<float>>> splitInputDataKFolds(vector<vector<float>> inputData)
+{
+	//10 folds
+	unsigned int foldCount = 10;
+	
+	//initialise result vector
+	vector<vector<vector<float>>> result;
+
+	//calculate size of each fold
+	unsigned int foldSize = (int)(inputData.size()/ (float) foldCount);
+
+	//initialise index
+	int index;
+
+	//initialise index vector
+	vector<int> allIndex;
+	for (unsigned int i = 0; i < inputData.size(); i++)
+	{
+		allIndex.push_back(i);
+	}
+
+	//shuffle indicies
+	random_shuffle(allIndex.begin(), allIndex.end());
+
+	//for each fold
+	for (unsigned int i = 0; i < foldCount; i++)
+	{
+		vector<vector<float>> fold;
+
+		//add foldSize rows of data
+		for (unsigned int j = 0; j < foldSize; j++)
+		{
+			index = allIndex.back();
+			allIndex.pop_back();
+
+			fold.push_back(inputData[index]);
+		}
+		result.push_back(fold);
+	}
+	return result;
+}
+
+vector<vector<vector<float>>> splitInputDataStatic(vector<vector<float>> inputData)
 {
 	float trainingRatio = 0.6f;
 	//initialise output vectors
@@ -198,7 +243,7 @@ int main()
 				int trainingType;
 				cout << endl << "Select training method:" << endl << endl;
 				cout << "1. Static 60/20/20." << endl;
-				cout << "2. K-fold Cross Validation (To do)" << endl;
+				cout << "2. K-fold Cross Validation." << endl;
 				cin >> trainingType;
 
 				unsigned int hiddenNodesCount;
@@ -208,113 +253,84 @@ int main()
 				cin >> passes;
 
 				cout << endl;
-
-				vector<vector<vector<float>>> inputDataSet = splitInputData(inputData);
-				for (unsigned int i = 2; i <= hiddenNodesCount; i++)
+				switch (trainingType)
 				{
-					cout << "Simulation running... training networks with " << i << " hidden nodes." << endl;
-					for (unsigned int j = 0; j < 20; j++)
+					case 1:
 					{
-						Network network(inputSize, i);
-						network.selectTraining(trainingType, inputDataSet, passes, j);
-						network.setId(networkList.size());
-						networkList.push_back(network);
+						for (unsigned int i = 2; i <= hiddenNodesCount; i++)
+						{
+							std::experimental::filesystem::create_directory("output/static/hn" + to_string(i));
+							cout << "Simulation running... training networks with " << i << " hidden nodes." << endl;
+							for (unsigned int j = 0; j < 20; j++)
+							{
+								vector<vector<vector<float>>> inputDataSet = splitInputDataStatic(inputData);
+								Network network(inputSize, i);
+								network.staticTraining(inputDataSet, passes, j, true);
+								network.setId(networkList.size());
+								networkList.push_back(network);
+							}
+						}
+						cout << endl << "Simulation Complete." << endl;
+
+						//output networks
+						ofstream networkListOutput;
+						networkListOutput.open("output/static/networkoutput.csv");
+						networkListOutput << "NetworkId, hNodes, Passes, Validation Accuracy, Test Accuracy" << endl;
+						for (Network network : networkList)
+						{
+							networkListOutput << network.networkId << ", " << network.hiddenNodesCount << ", " << network.passes << ", " << network.accuracy << ", " << network.testSetAccuracy << endl;
+						}
+						networkListOutput.close();
+						break;
+					}
+
+					case 2:
+					{
+						vector<vector<vector<float>>> inputDataSet = splitInputDataKFolds(inputData);
+						for (unsigned int i = 2; i <= hiddenNodesCount; i++)
+						{
+							std::experimental::filesystem::create_directory("output/kfolds/hn" + to_string(i));
+							cout << "Simulation running... training networks with " << i << " hidden nodes." << endl;
+							for (unsigned int j = 0; j < 20; j++)
+							{
+								std::experimental::filesystem::create_directory("output/kfolds/hn" + to_string(i) + "/n" + to_string(j));
+								Network network(inputSize, i);
+								network.kFoldsTraining(inputDataSet, passes, j);
+								network.setId(networkList.size());
+								networkList.push_back(network);
+							}
+						}
+						cout << endl << "Simulation Complete." << endl;
+
+						//output networks
+						ofstream networkListOutput;
+						networkListOutput.open("output/kfolds/networkoutput.csv");
+						networkListOutput << "NetworkId, hNodes, Validation Accuracy, P1, P2, P3, P4, P5, P6, P7, P8, P9, P10, Total" << endl;
+						for (Network network : networkList)
+						{
+							networkListOutput << network.networkId << ", " << network.hiddenNodesCount << ", " << network.accuracy;
+							for (int passes : network.kStepPasses)
+							{
+								networkListOutput << ", " << passes;
+							}
+							networkListOutput << ", " << network.totalPasses << endl;
+						}
+						networkListOutput.close();
+						break;
 					}
 				}
-				cout << endl << "Simulation Complete." << endl;
+				break;
+			}
 
-				ofstream networkListOutput;
-				networkListOutput.open("networkoutput.csv");
-				networkListOutput << "NetworkId, FileId, hNodes, Passes, Accuracy" << endl;
-				for (Network network : networkList)
+			case 3:
+			{
+				unsigned int numberOfNetworks = networkList.size();
+				for (unsigned int i = 0; i < numberOfNetworks; i++)
 				{
-					networkListOutput << network.networkId << ", " << network.networkId % 20 << network.hiddenNodesCount << ", " << network.hiddenNodesCount << ", " << network.passes << ", " << network.accuracy << endl;
+					networkList.pop_back();
 				}
-				networkListOutput.close();
 				break;
 			}
-			/*
-			case 3: 
-			{
-				cout << endl << "Enter the number of hidden nodes to be used." << endl;
-				cin >> hiddenNodesCount;
-				cout << endl << "Enter the number of passes the network should make." << endl;
-				cin >> passes;
-
-				Network network(inputSize, hiddenNodesCount);
-				for (unsigned int i = 0; i < passes; i++)
-				{
-					if (i+1 % 500 == 0)
-					{
-						cout << "Simulation running, " << i << " passes complete." << endl;
-					}
-					if (i == passes - 1)
-					{
-						network.runOnce(getDataset(inputData, 0.6f)[0], i, true);
-					}
-					else
-					{
-						network.runOnce(getDataset(inputData, 0.6f)[0], i, false);
-					}
-				}
-
-				network.getOutput(getDataset(inputData, 0.4f)[0]);
-				
-				network.outputResults();
-				network.setId(networkList.size());
-				networkList.push_back(network);
-				break;
-			}
-
-			case 4: 
-			{
-				cout << endl << "Enter the number of hidden nodes to be used." << endl;
-				cin >> hiddenNodesCount;
-				cout << endl << "Enter the number of passes the network should make." << endl;
-				cin >> passes;
-
-				Network network(inputSize, hiddenNodesCount);
-				vector<vector<vector<float>>> dataSet = getDataset(inputData, 0.6f);
-				network.run(dataSet[0], passes);
-				network.getOutput(dataSet[1]);
-				network.outputResults();
-				network.setId(networkList.size());
-				networkList.push_back(network);
-				break;
-			}
-
-			case 5:
-			{
-				flushInputData();
-				readCSV();
-				standardiseData();
-				break;
-			}
-
-			case 6:
-			{
-				for (Network network : networkList)
-				{
-					cout << "Network Id: " << network.networkId << endl;
-					cout << "Number of input nodes: " << network.inputNodesCount << endl;
-					cout << "Number of hidden nodes: " << network.hiddenNodesCount << endl;
-					cout << "Passes: " << network.passes << endl;
-					cout << "Accuracy: " << network.accuracy << endl << endl;
-				}
-				cout << endl << "Select a network to save to file." << endl;
-				int selectedNetwork;
-				cin >> selectedNetwork;
-				cout << endl;
-
-				string filename;
-				cout << "Enter the desired filename." << endl;
-				cin >> filename;
-				cout << endl;
-				networkList[selectedNetwork].save(filename);
-				cout << "Selected network (Id = " << selectedNetwork << ") saved as " << filename << ".csv." << endl << endl;
-				break;
-			}
-			*/
 			case -1:
 			{
 				return 0;

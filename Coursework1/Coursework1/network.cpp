@@ -84,64 +84,114 @@ Network::Network(int iNodesCount, int hNodesCount)
 	{
 		weightsMatrix[0][i] = randomGen(inputNodesCount);
 	}
-
-	//cout << endl << "Network Initialised with "<< hiddenNodesCount << " hidden nodes." << endl;
 }
 
-//calculate the number of rows needed in each dataset 
-//for each set, loop until you've filled the set
-//taking a random index out of the index file in each pass
-
-void Network::selectTraining(int type, vector<vector<vector<float>>> inputDataSet, int desiredPasses, int networkCount)
+void Network::kFoldsTraining(vector<vector<vector<float>>> inputDataSet, int desiredPasses, int networkCount)
 {
-	switch (type)
+	passes = desiredPasses;
+	totalPasses = 0;
+	float pastAcc;
+	int validationSet = 0;
+	while (validationSet < 10)
 	{
-		case 1: //Split 60/20/20
+		for (unsigned int i = 1; i <= passes; i++)
 		{
-			passes = desiredPasses;
-			float pastAcc;
-			ofstream accTest;
-			accTest.open("acctest.csv");
-			accTest << "pass,msqer" << endl;
-			for (int i = 1; i <= passes; i++)
-			{
-				if (i % 100 == 0)
+			if (i % 100 == 0)
+			{//validate
+				pastAcc = accuracy;
+				getOutput(inputDataSet[validationSet], false);
+				if (pastAcc < accuracy)
 				{
-					pastAcc = accuracy;
-					getOutput(inputDataSet[1], false);
-					accTest << i << ", " << accuracy << endl;
-					//cout << "Simulation running... " << endl << "Passes complete: " << i << endl << "Accuracy on validation set: " << accuracy << endl << endl;
-					if (pastAcc < accuracy)
-					{
-						//cout << "Found minimum! Terminating network training..." << endl << endl;
-						passes = i;
-					}
-				}
-				if (i == passes)
-				{//if last pass, create output files
-					string filename = "network" + to_string(networkCount) + to_string(hiddenNodesCount);
-					getOutput(inputDataSet[1], true, filename);
-				}
-				else
-				{
-					runOnce(inputDataSet[0], i, false);
+					passes = i;
 				}
 			}
-			accTest.close();
-			//cout << "Simulation Complete. " << endl;
-			break;
+			if (i == passes)
+			{//last pass, create output files
+				kStepPasses.push_back(passes);
+				string filename = "kfolds/hn"+ to_string(hiddenNodesCount) + "/n" + to_string(networkCount) + "/vs" + to_string(validationSet);
+				getOutput(inputDataSet[validationSet], true, filename);
+			}
+			else
+			{
+				for (unsigned int j = 0; j < inputDataSet.size(); j++)
+				{
+					if (j != validationSet)
+					{
+						runOnce(inputDataSet[j], i, false);
+					}
+				}
+			}
+			totalPasses++;
 		}
+		validationSet++;
+		passes = desiredPasses;
+	}
+}
 
-		case 2:
-		{
-			
-			break;
+//for each set, loop until you've filled the set
+//taking a random index out of the index file in each pass
+void Network::staticTraining(vector<vector<vector<float>>> inputDataSet, int desiredPasses, int networkCount, bool boldDriver)
+{
+	passes = desiredPasses;
+	float pastAcc;
+	//ofstream accTest;
+	//accTest.open("acctest.csv");
+	//accTest << "pass,msqer" << endl;
+	for (unsigned int i = 1; i <= passes; i++)
+	{
+		if (i % 100 == 0)
+		{//validate
+			pastAcc = accuracy;
+			getOutput(inputDataSet[1]);
+			//accTest << i << ", " << accuracy << endl;
+			if (pastAcc < accuracy)
+			{
+				passes = i;
+			}
 		}
-
-		case 3:
+		if (i == passes)
+		{//if last pass, create output files
+			string filename = "static/hn" + to_string(hiddenNodesCount) + "/n" +  to_string(networkCount);
+			getOutput(inputDataSet[1], true, filename);
+			getOutput(inputDataSet[2], true, filename + "ts", true);
+		}
+		else
 		{
-			
-			break;
+			if (boldDriver)
+			{//bold driver approach
+				bool improved = false;
+				int loopBreaker = 0;
+				while (!improved && loopBreaker < 5)
+				{
+					float oldError = accuracy;
+					vector<vector<float>> backupWeightsMatrix = weightsMatrix;
+					vector<Node> backupNodeList = nodeList;
+					runOnce(inputDataSet[0], i, false);
+					getOutput(inputDataSet[1]);
+					float newError = accuracy;
+
+					if (newError < oldError)
+					{
+						stepParameter *= 1.1f;
+						if (stepParameter > 10) stepParameter = 10;
+						improved = true;
+						loopBreaker = 0;
+					}
+					else
+					{
+						stepParameter *= 0.5;
+						if (stepParameter < 0.1) stepParameter = 0.1f;
+						weightsMatrix = backupWeightsMatrix;
+						nodeList = backupNodeList;
+						runOnce(inputDataSet[0], i, false);
+						loopBreaker++;
+					}
+				}
+			}//normal approach
+			else
+			{
+				runOnce(inputDataSet[0], i, false);
+			}
 		}
 	}
 }
@@ -167,7 +217,7 @@ Node Network::getNodeById(int id)
 }
 
 //for each row in a given dataset, calculate a predicted output and output it
-void Network::getOutput(vector<vector<float>> inputData, bool createOutput, string fileName)
+void Network::getOutput(vector<vector<float>> inputData, bool createOutput, string fileName, bool testSet)
 {
 	vector<float> predictedOutputAccuracy;
 	int rowId = 1;
@@ -184,11 +234,11 @@ void Network::getOutput(vector<vector<float>> inputData, bool createOutput, stri
 	{
 		forwardPass(row);
 
-		//output results
+		
 		int outputNodeId = inputNodesCount + hiddenNodesCount + 1;
 		float correctOutput = row.back();
 		if (createOutput)
-		{
+		{//output results
 			outputFile << rowId << ", " << getNodeById(outputNodeId).nodeOutput << ", " << correctOutput << endl;
 		}
 		predictedOutputAccuracy.push_back(correctOutput - getNodeById(outputNodeId).nodeOutput);
@@ -198,12 +248,12 @@ void Network::getOutput(vector<vector<float>> inputData, bool createOutput, stri
 	{
 		outputFile.close();
 	}
-	calculateAccuracy(predictedOutputAccuracy);
+	calculateAccuracy(predictedOutputAccuracy, testSet);
 }
 
 //run for a single pass, loop is controlled externally
 //allows for different(varying) datasets to be passed in
-void Network::runOnce(vector<vector<float>> inputData, int loopCounter, bool createOutput)
+void Network::runOnce(vector<vector<float>> inputData, int loopCounter, bool createOutput, bool boldDriver)
 {
 	int rowId = 1;
 	ofstream outputFile;
@@ -216,7 +266,39 @@ void Network::runOnce(vector<vector<float>> inputData, int loopCounter, bool cre
 	for (vector<float> row : inputData)
 	{
 		forwardPass(row);
-		backwardPass(row);
+
+		if (boldDriver)
+		{//bold driver approach
+			bool improved = false;
+			while (!improved)
+			{
+				float oldError = 0;
+				float newError = 0;
+				oldError = (abs(row.back() - nodeList.back().nodeOutput));
+				vector<vector<float>> backupWeightsMatrix = weightsMatrix;
+				vector<Node> backupNodeList = nodeList;
+				backwardPass(row, true);
+				forwardPass(row);
+				newError = (abs(row.back() - nodeList.back().nodeOutput));
+
+				if (newError < oldError)
+				{
+					stepParameter *= 1.1f;
+					improved = true;
+				}
+				else
+				{
+					stepParameter *= 0.5f;
+					weightsMatrix = backupWeightsMatrix;
+					nodeList = backupNodeList;
+					backwardPass(row, true);
+				}
+			}
+		}//normal approach
+		else
+		{
+			backwardPass(row, true);
+		}
 
 		//output results
 		if (createOutput)
@@ -268,7 +350,7 @@ void Network::forwardPass(vector<float> inputRow)
 	nodeList[outputNodeId - 1].setNodeOutput(output);
 }
 //backward pass for single row of data
-void Network::backwardPass(vector<float> inputRow)
+void Network::backwardPass(vector<float> inputRow, bool momentum)
 {
 	//initialise loop variables
 	int inputNodesLower = 1;
@@ -291,83 +373,80 @@ void Network::backwardPass(vector<float> inputRow)
 	}
 
 	//update weights
-	//input layer -> hidden layer
-	for (int i = inputNodesLower; i <= inputNodesUpper; i++)
-	{
-		for (int j = hiddenNodesLower; j <= hiddenNodesUpper; j++)
+	if (momentum)
+	{//with momentum
+		float newWeight, deltaWeight;
+		float alpha = 0.9f;
+		//input layer -> hidden layer
+		for (int i = inputNodesLower; i <= inputNodesUpper; i++)
 		{
-			weightsMatrix[i][j] = weightsMatrix[i][j] + (stepParameter * getNodeById(j).delta * getNodeById(i).nodeOutput);
-		}
-	}
-
-	//hidden layer -> output layer
-	for (int i = hiddenNodesLower; i <= hiddenNodesUpper; i++)
-	{
-		weightsMatrix[i][outputNodeId] = weightsMatrix[i][outputNodeId] + (stepParameter * getNodeById(outputNodeId).delta * getNodeById(i).nodeOutput);
-	}
-
-	//bias weights
-	for (int i = hiddenNodesLower; i <= outputNodeId; i++)
-	{
-		weightsMatrix[0][i] = weightsMatrix[0][i] + (stepParameter * getNodeById(i).delta * getNodeById(i).bias);
-	}
-}
-//run for a given number of passes
-/*
-//input data is fixed for entire training
-void Network::run(vector<vector<float>> inputData, int desiredPasses)
-{
-	passes = desiredPasses;
-	ofstream outputFile;
-	outputFile.open("output.csv");
-	outputFile << "Loop, Row, Predicted, Correct" << endl;
-	for (int loop = 0; loop < passes; loop++)
-	{
-		if (loop % 500 == 0)
-		{
-			cout << "Simulation running, " << loop << " passes complete." << endl;
-		}
-
-		vector<float> predictedOutputAccuracy;
-
-		int rowId = 1;
-		for (vector<float> row : inputData)
-		{
-			forwardPass(row);
-			backwardPass(row);
-
-			int outputNodeId = inputNodesCount + hiddenNodesCount + 1;
-			float correctOutput = row.back();
-			//output results
-			if (loop+1 % 500 == 0)
+			for (int j = hiddenNodesLower; j <= hiddenNodesUpper; j++)
 			{
-				outputFile << loop << ", " << rowId << ", " << getNodeById(outputNodeId).nodeOutput << ", " << correctOutput << endl;
+				deltaWeight = weightsMatrix[i][j];
+				newWeight = weightsMatrix[i][j] + (stepParameter * getNodeById(j).delta * getNodeById(i).nodeOutput);
+				deltaWeight = newWeight - deltaWeight;
+				weightsMatrix[i][j] = newWeight + (alpha * deltaWeight);
 			}
-			predictedOutputAccuracy.push_back(correctOutput - getNodeById(outputNodeId).nodeOutput);
-			rowId++;
 		}
-		accuracyMatrix.push_back(predictedOutputAccuracy);
+
+		//hidden layer -> output layer
+		for (int i = hiddenNodesLower; i <= hiddenNodesUpper; i++)
+		{
+			deltaWeight = weightsMatrix[i][outputNodeId];
+			newWeight = weightsMatrix[i][outputNodeId] + (stepParameter * getNodeById(outputNodeId).delta * getNodeById(i).nodeOutput);
+			deltaWeight = newWeight - deltaWeight;
+			weightsMatrix[i][outputNodeId] = newWeight + (alpha * deltaWeight);
+		}
+
+		//bias weights
+		for (int i = hiddenNodesLower; i <= outputNodeId; i++)
+		{
+			deltaWeight = weightsMatrix[0][i];
+			newWeight = weightsMatrix[0][i] + (stepParameter * getNodeById(i).delta * getNodeById(i).bias);
+			deltaWeight = newWeight - deltaWeight;
+			weightsMatrix[0][i] = newWeight + (alpha * deltaWeight);
+		}
 	}
-	outputFile.close();
-	cout << "Simulation Complete" << endl << endl;
-}
-*/
-void Network::outputResults()
-{
-	cout << "RESULTS" << endl;
-	cout << "Number of input nodes: " << inputNodesCount << endl;
-	cout << "Number of hidden nodes: " << hiddenNodesCount << endl;
-	cout << "Accuracy: " << accuracy << endl << endl;	
+	else
+	{//without momentum
+		//input layer -> hidden layer
+		for (int i = inputNodesLower; i <= inputNodesUpper; i++)
+		{
+			for (int j = hiddenNodesLower; j <= hiddenNodesUpper; j++)
+			{
+				weightsMatrix[i][j] = weightsMatrix[i][j] + (stepParameter * getNodeById(j).delta * getNodeById(i).nodeOutput);
+			}
+		}
+
+		//hidden layer -> output layer
+		for (int i = hiddenNodesLower; i <= hiddenNodesUpper; i++)
+		{
+			weightsMatrix[i][outputNodeId] = weightsMatrix[i][outputNodeId] + (stepParameter * getNodeById(outputNodeId).delta * getNodeById(i).nodeOutput);
+		}
+
+		//bias weights
+		for (int i = hiddenNodesLower; i <= outputNodeId; i++)
+		{
+			weightsMatrix[0][i] = weightsMatrix[0][i] + (stepParameter * getNodeById(i).delta * getNodeById(i).bias);
+		}
+	}
 }
 
-void Network::calculateAccuracy(vector<float> accuracyMatrix)
+void Network::calculateAccuracy(vector<float> accuracyMatrix, bool testSet)
 {
 	float total = 0;
 	for (float predictedOutput : accuracyMatrix)
 	{
 		total += pow(predictedOutput, 2);
 	}
-	accuracy = total / accuracyMatrix.size();
+	if (testSet)
+	{
+		testSetAccuracy = total / accuracyMatrix.size();
+	}
+	else
+	{
+		accuracy = total / accuracyMatrix.size();
+	}
 }
 
 void Network::setId(int id)
