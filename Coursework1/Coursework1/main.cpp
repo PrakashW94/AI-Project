@@ -16,9 +16,8 @@ using namespace std;
 vector<vector<float>> inputData;
 vector<Network> networkList;
 int inputSize;
-unsigned int passes;
-//string inputfile = "C:\\Users\\cgpw\\Desktop\\AI-Project\\Data\\CWDataStudentClean.csv";
-string inputfile = "D:\\Work\\Part C\\Advanced AI\\Project\\Data\\CWDataStudentCleanOld.csv";
+string inputfile = "C:\\Users\\cgpw\\Desktop\\AI-Project\\Data\\CWDataStudentCleanOld.csv";
+//string inputfile = "D:\\Work\\Part C\\Advanced AI\\Project\\Data\\CWDataStudentCleanOld.csv";
 
 void readCSV()
 {
@@ -219,6 +218,12 @@ vector<vector<vector<float>>> splitInputDataStatic(vector<vector<float>> inputDa
 	return result;
 }
 
+//denormalise using linear relationship
+float denormaliseMSQE(float value)
+{
+	return (7401.5f*value + 15.318f);
+}
+
 int main()
 {
 	srand( unsigned int (time(NULL)));
@@ -247,10 +252,15 @@ int main()
 				cin >> trainingType;
 
 				unsigned int hiddenNodesCount;
+				unsigned int passes;
 				cout << endl << "Enter the maximum number of hidden nodes to be used." << endl;
 				cin >> hiddenNodesCount;
 				cout << endl << "Enter the maximum number of passes the network should make." << endl;
 				cin >> passes;
+
+				bool bDriver;
+				cout << endl << "Do you want to use a bold driver approach? (1/0)" << endl;
+				cin >> bool(bDriver);
 
 				cout << endl;
 				switch (trainingType)
@@ -261,11 +271,11 @@ int main()
 						{
 							std::experimental::filesystem::create_directory("output/static/hn" + to_string(i));
 							cout << "Simulation running... training networks with " << i << " hidden nodes." << endl;
-							for (unsigned int j = 0; j < 20; j++)
+							for (unsigned int j = 0; j < 5; j++)
 							{
 								vector<vector<vector<float>>> inputDataSet = splitInputDataStatic(inputData);
 								Network network(inputSize, i);
-								network.staticTraining(inputDataSet, passes, j, true);
+								network.staticTraining(inputDataSet, passes, j, bDriver);
 								network.setId(networkList.size());
 								networkList.push_back(network);
 							}
@@ -275,10 +285,10 @@ int main()
 						//output networks
 						ofstream networkListOutput;
 						networkListOutput.open("output/static/networkoutput.csv");
-						networkListOutput << "NetworkId, hNodes, Passes, Validation Accuracy, Test Accuracy" << endl;
+						networkListOutput << "NetworkId, hNodes, Passes, Validation Accuracy, Validation Accuracy (DN), Test Accuracy, Test Accuracy DN" << endl;
 						for (Network network : networkList)
 						{
-							networkListOutput << network.networkId << ", " << network.hiddenNodesCount << ", " << network.passes << ", " << network.accuracy << ", " << network.testSetAccuracy << endl;
+							networkListOutput << network.networkId << ", " << network.hiddenNodesCount << ", " << network.passes << ", " << network.accuracy << ", " << denormaliseMSQE(network.accuracy) << ", " << network.testSetAccuracy << ", " << denormaliseMSQE(network.testSetAccuracy) << endl;
 						}
 						networkListOutput.close();
 						break;
@@ -286,16 +296,16 @@ int main()
 
 					case 2:
 					{
-						vector<vector<vector<float>>> inputDataSet = splitInputDataKFolds(inputData);
 						for (unsigned int i = 2; i <= hiddenNodesCount; i++)
 						{
 							std::experimental::filesystem::create_directory("output/kfolds/hn" + to_string(i));
 							cout << "Simulation running... training networks with " << i << " hidden nodes." << endl;
-							for (unsigned int j = 0; j < 20; j++)
+							for (unsigned int j = 0; j < 5; j++)
 							{
+								vector<vector<vector<float>>> inputDataSet = splitInputDataKFolds(inputData);
 								std::experimental::filesystem::create_directory("output/kfolds/hn" + to_string(i) + "/n" + to_string(j));
 								Network network(inputSize, i);
-								network.kFoldsTraining(inputDataSet, passes, j);
+								network.kFoldsTraining(inputDataSet, passes, j, bDriver);
 								network.setId(networkList.size());
 								networkList.push_back(network);
 							}
@@ -305,10 +315,10 @@ int main()
 						//output networks
 						ofstream networkListOutput;
 						networkListOutput.open("output/kfolds/networkoutput.csv");
-						networkListOutput << "NetworkId, hNodes, Validation Accuracy, P1, P2, P3, P4, P5, P6, P7, P8, P9, P10, Total" << endl;
+						networkListOutput << "NetworkId, hNodes, Validation Accuracy, Validation Accuracy (DN), P1, P2, P3, P4, P5, P6, P7, P8, P9, P10, Total" << endl;
 						for (Network network : networkList)
 						{
-							networkListOutput << network.networkId << ", " << network.hiddenNodesCount << ", " << network.accuracy;
+							networkListOutput << network.networkId << ", " << network.hiddenNodesCount << ", " << network.accuracy << ", " << denormaliseMSQE(network.accuracy);
 							for (int passes : network.kStepPasses)
 							{
 								networkListOutput << ", " << passes;

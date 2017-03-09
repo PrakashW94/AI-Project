@@ -1,8 +1,7 @@
-﻿  main.cpp
+﻿  network.cpp
   Generating code
-  1 of 1226 functions ( 0.1%) were compiled, the rest were copied from previous compilation.
-    0 functions were new in current compilation
-    23 functions had inline decision re-evaluated but remain unchanged
+  69 of 1231 functions ( 5.6%) were compiled, the rest were copied from previous compilation.
+    10 functions were new in current compilation
+    68 functions had inline decision re-evaluated but remain unchanged
   Finished generating code
-  Coursework1.vcxproj -> D:\Work\Part C\Advanced AI\Project\Coursework1\Release\Coursework1.exe
-  Coursework1.vcxproj -> D:\Work\Part C\Advanced AI\Project\Coursework1\Release\Coursework1.pdb (Full PDB)
+  Coursework1.vcxproj -> C:\Users\cgpw\Desktop\AI-Project\Coursework1\Release\Coursework1.exe

@@ -24,12 +24,12 @@ public:
 	//constructor
 	Network(int inputSize, int hiddenNodesCount);
 	void outputWeights();
-	void kFoldsTraining(vector<vector<vector<float>>> inputDataSet, int desiredPasses, int networkCount);
+	void kFoldsTraining(vector<vector<vector<float>>> inputDataSet, int desiredPasses, int networkCount, bool boldDriver = false);
 	void staticTraining(vector<vector<vector<float>>> inputDataSet, int desiredPasses, int networkCount, bool boldDriver = false);
 	void forwardPass(vector<float> inputRow);
 	void backwardPass(vector<float> inputRow, bool momentum = false);
 	//void run(vector<vector<float>> inputData, int passes);
-	void runOnce(vector<vector<float>> inputData, int loopCounter, bool createOutput, bool boldDriver = false);
+	void runOnce(vector<vector<float>> inputData, int loopCounter, bool createOutput);
 	void getOutput(vector<vector<float>> inputData, bool createOutput = false, string fileName = "output2", bool testSet = false);
 	Node getNodeById(int id); //should only be used for read!
 	void setId(int id);

@@ -86,7 +86,7 @@ Network::Network(int iNodesCount, int hNodesCount)
 	}
 }
 
-void Network::kFoldsTraining(vector<vector<vector<float>>> inputDataSet, int desiredPasses, int networkCount)
+void Network::kFoldsTraining(vector<vector<vector<float>>> inputDataSet, int desiredPasses, int networkCount, bool boldDriver)
 {
 	passes = desiredPasses;
 	totalPasses = 0;
@@ -117,7 +117,41 @@ void Network::kFoldsTraining(vector<vector<vector<float>>> inputDataSet, int des
 				{
 					if (j != validationSet)
 					{
-						runOnce(inputDataSet[j], i, false);
+						if (boldDriver)
+						{//bold driver approach
+							bool improved = false;
+							int loopBreaker = 0;
+							while (!improved && loopBreaker < 5)
+							{
+								float oldError = accuracy;
+								vector<vector<float>> backupWeightsMatrix = weightsMatrix;
+								vector<Node> backupNodeList = nodeList;
+								runOnce(inputDataSet[j], i, false);
+								getOutput(inputDataSet[validationSet]);
+								float newError = accuracy;
+
+								if (newError < oldError)
+								{
+									stepParameter *= 1.1f;
+									if (stepParameter > 10) stepParameter = 10;
+									improved = true;
+									loopBreaker = 0;
+								}
+								else
+								{
+									stepParameter *= 0.5;
+									if (stepParameter < 0.1) stepParameter = 0.1f;
+									weightsMatrix = backupWeightsMatrix;
+									nodeList = backupNodeList;
+									runOnce(inputDataSet[j], i, false);
+									loopBreaker++;
+								}
+							}
+						}
+						else
+						{//normal approach
+							runOnce(inputDataSet[j], i, false);
+						}
 					}
 				}
 			}
@@ -126,6 +160,16 @@ void Network::kFoldsTraining(vector<vector<vector<float>>> inputDataSet, int des
 		validationSet++;
 		passes = desiredPasses;
 	}
+	vector<vector<float>> fullDataSet;
+	for (vector<vector<float>> set : inputDataSet)
+	{
+		for (vector<float> row : set)
+		{
+			fullDataSet.push_back(row);
+		}
+	}
+	string filename = "kfolds/hn" + to_string(hiddenNodesCount) + "/n" + to_string(networkCount) + "/full";
+	getOutput(fullDataSet, true, filename, false);
 }
 
 //for each set, loop until you've filled the set
@@ -253,7 +297,7 @@ void Network::getOutput(vector<vector<float>> inputData, bool createOutput, stri
 
 //run for a single pass, loop is controlled externally
 //allows for different(varying) datasets to be passed in
-void Network::runOnce(vector<vector<float>> inputData, int loopCounter, bool createOutput, bool boldDriver)
+void Network::runOnce(vector<vector<float>> inputData, int loopCounter, bool createOutput)
 {
 	int rowId = 1;
 	ofstream outputFile;
@@ -266,39 +310,7 @@ void Network::runOnce(vector<vector<float>> inputData, int loopCounter, bool cre
 	for (vector<float> row : inputData)
 	{
 		forwardPass(row);
-
-		if (boldDriver)
-		{//bold driver approach
-			bool improved = false;
-			while (!improved)
-			{
-				float oldError = 0;
-				float newError = 0;
-				oldError = (abs(row.back() - nodeList.back().nodeOutput));
-				vector<vector<float>> backupWeightsMatrix = weightsMatrix;
-				vector<Node> backupNodeList = nodeList;
-				backwardPass(row, true);
-				forwardPass(row);
-				newError = (abs(row.back() - nodeList.back().nodeOutput));
-
-				if (newError < oldError)
-				{
-					stepParameter *= 1.1f;
-					improved = true;
-				}
-				else
-				{
-					stepParameter *= 0.5f;
-					weightsMatrix = backupWeightsMatrix;
-					nodeList = backupNodeList;
-					backwardPass(row, true);
-				}
-			}
-		}//normal approach
-		else
-		{
-			backwardPass(row, true);
-		}
+		backwardPass(row, true);
 
 		//output results
 		if (createOutput)
