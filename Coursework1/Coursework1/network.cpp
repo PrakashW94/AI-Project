@@ -126,7 +126,7 @@ void Network::kFoldsTraining(vector<vector<vector<float>>> inputDataSet, int des
 								float oldError = accuracy;
 								vector<vector<float>> backupWeightsMatrix = weightsMatrix;
 								vector<Node> backupNodeList = nodeList;
-								runOnce(inputDataSet[j], i, false);
+								runOnce(inputDataSet[j]);
 								getOutput(inputDataSet[validationSet]);
 								float newError = accuracy;
 
@@ -143,14 +143,14 @@ void Network::kFoldsTraining(vector<vector<vector<float>>> inputDataSet, int des
 									if (stepParameter < 0.1) stepParameter = 0.1f;
 									weightsMatrix = backupWeightsMatrix;
 									nodeList = backupNodeList;
-									runOnce(inputDataSet[j], i, false);
+									runOnce(inputDataSet[j]);
 									loopBreaker++;
 								}
 							}
 						}
 						else
 						{//normal approach
-							runOnce(inputDataSet[j], i, false);
+							runOnce(inputDataSet[j]);
 						}
 					}
 				}
@@ -178,16 +178,16 @@ void Network::staticTraining(vector<vector<vector<float>>> inputDataSet, int des
 {
 	passes = desiredPasses;
 	float pastAcc;
-	//ofstream accTest;
-	//accTest.open("acctest.csv");
-	//accTest << "pass,msqer" << endl;
+	ofstream accTest;
+	accTest.open("output/acctest" + to_string(networkCount) + ".csv");
+	accTest << "pass,msqer" << endl;
 	for (unsigned int i = 1; i <= passes; i++)
 	{
 		if (i % 100 == 0)
 		{//validate
 			pastAcc = accuracy;
 			getOutput(inputDataSet[1]);
-			//accTest << i << ", " << accuracy << endl;
+			accTest << i << ", " << accuracy << endl;
 			if (pastAcc < accuracy)
 			{
 				passes = i;
@@ -210,7 +210,7 @@ void Network::staticTraining(vector<vector<vector<float>>> inputDataSet, int des
 					float oldError = accuracy;
 					vector<vector<float>> backupWeightsMatrix = weightsMatrix;
 					vector<Node> backupNodeList = nodeList;
-					runOnce(inputDataSet[0], i, false);
+					runOnce(inputDataSet[0]);
 					getOutput(inputDataSet[1]);
 					float newError = accuracy;
 
@@ -227,17 +227,78 @@ void Network::staticTraining(vector<vector<vector<float>>> inputDataSet, int des
 						if (stepParameter < 0.1) stepParameter = 0.1f;
 						weightsMatrix = backupWeightsMatrix;
 						nodeList = backupNodeList;
-						runOnce(inputDataSet[0], i, false);
+						runOnce(inputDataSet[0]);
 						loopBreaker++;
 					}
 				}
-			}//normal approach
+			}
 			else
-			{
-				runOnce(inputDataSet[0], i, false);
+			{//normal approach
+				runOnce(inputDataSet[0]);
 			}
 		}
 	}
+	accTest.close();
+}
+
+void Network::staticTrainingBD(vector<vector<vector<float>>> inputDataSet, int desiredPasses, int networkCount, bool boldDriver)
+{
+	passes = desiredPasses;
+	float pastAcc;
+	ofstream accTest;
+	accTest.open("output/acctest" + to_string(networkCount) + ".csv");
+	accTest << "pass,msqer" << endl;
+	unsigned int loopTerminate = (int)(passes / (float)100);
+	for (unsigned int i = 1; i <= loopTerminate; i++)
+	{
+		pastAcc = accuracy;
+
+		bool improved = false;
+		int loopBreaker = 0;
+		while (!improved && loopBreaker < 5)
+		{
+			float oldError = accuracy;
+			vector<vector<float>> backupWeightsMatrix = weightsMatrix;
+			vector<Node> backupNodeList = nodeList;
+			runBlock(inputDataSet[0]);
+			getOutput(inputDataSet[1]);
+			float newError = accuracy;
+
+			if (newError < oldError)
+			{
+				stepParameter *= 1.1f;
+				if (stepParameter > 10) stepParameter = 10;
+				improved = true;
+				loopBreaker = 0;
+			}
+			else
+			{
+				stepParameter *= 0.5;
+				if (stepParameter < 0.1) stepParameter = 0.1f;
+				weightsMatrix = backupWeightsMatrix;
+				nodeList = backupNodeList;
+				loopBreaker++;
+			}
+		}
+		
+		//validate
+		
+		//getOutput(inputDataSet[1]);
+		accTest << i << ", " << accuracy << endl;
+		if (pastAcc < accuracy)
+		{
+			loopTerminate = i;
+			passes = i * loopTerminate;
+		}
+		
+		if (i == loopTerminate)
+		{//if last pass, create output files
+			string filename = "static/hn" + to_string(hiddenNodesCount) + "/n" + to_string(networkCount);
+			getOutput(inputDataSet[1], true, filename);
+			getOutput(inputDataSet[2], true, filename + "ts", true);
+		}
+	}
+	accTest.close();
 }
 
 void Network::outputWeights()
@@ -297,29 +358,21 @@ void Network::getOutput(vector<vector<float>> inputData, bool createOutput, stri
 
 //run for a single pass, loop is controlled externally
 //allows for different(varying) datasets to be passed in
-void Network::runOnce(vector<vector<float>> inputData, int loopCounter, bool createOutput)
+void Network::runOnce(vector<vector<float>> inputData)
 {
-	int rowId = 1;
-	ofstream outputFile;
-	if (createOutput)
-	{
-		outputFile.open("output.csv");
-		outputFile << "Loop, Row, Predicted, Correct" << endl;
-	}
-
 	for (vector<float> row : inputData)
 	{
 		forwardPass(row);
 		backwardPass(row, true);
+	}
+}
 
-		//output results
-		if (createOutput)
-		{//createOutput is set on the final pass through
-			int outputNodeId = inputNodesCount + hiddenNodesCount + 1;
-			float correctOutput = row.back();
-			outputFile << loopCounter << ", " << rowId << ", " << getNodeById(outputNodeId).nodeOutput << ", " << correctOutput << endl;
-		}
-		rowId++;
+//run for 100 passes
+void Network::runBlock(vector<vector<float>> inputData)
+{
+	for (int i = 0; i < 100; i++)
+	{
+		runOnce(inputData);
 	}
 }
 

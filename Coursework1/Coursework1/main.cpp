@@ -271,11 +271,11 @@ int main()
 						{
 							std::experimental::filesystem::create_directory("output/static/hn" + to_string(i));
 							cout << "Simulation running... training networks with " << i << " hidden nodes." << endl;
-							for (unsigned int j = 0; j < 5; j++)
+							for (unsigned int j = 0; j < 10; j++)
 							{
 								vector<vector<vector<float>>> inputDataSet = splitInputDataStatic(inputData);
 								Network network(inputSize, i);
-								network.staticTraining(inputDataSet, passes, j, bDriver);
+								network.staticTrainingBD(inputDataSet, passes, j, bDriver);
 								network.setId(networkList.size());
 								networkList.push_back(network);
 							}
