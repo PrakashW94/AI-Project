@@ -318,7 +318,7 @@ int main()
 						{
 							std::experimental::filesystem::create_directory("output/kfolds/hn" + to_string(i));
 							cout << "Simulation running... training networks with " << i << " hidden nodes." << endl;
-							for (unsigned int j = 0; j < 1; j++)
+							for (unsigned int j = 0; j < 5; j++)
 							{
 								cout << "Training network " << j << "..." << endl;
 								vector<vector<vector<float>>> inputDataSet = splitInputDataKFolds(inputData);
@@ -341,10 +341,10 @@ int main()
 						//output networks
 						ofstream networkListOutput;
 						networkListOutput.open("output/kfolds/networkoutput.csv");
-						networkListOutput << "NetworkId, hNodes, Validation Accuracy (AVG), Validation Accuracy (AVG-DN), Test Accuracy (SET), Test Accuracy (SET-DN), Total Passes" << endl;
+						networkListOutput << "NetworkId, hNodes, Effective Passes, Total Passes, Step Parameter, Validation Accuracy, Validation Accuracy (DN), Test Accuracy, Test Accuracy DN" << endl;
 						for (Network network : networkList)
 						{
-							networkListOutput << network.networkId << ", " << network.hiddenNodesCount << ", " << network.accuracy << ", " << denormaliseRMSE(network.accuracy) << ", " << network.testSetAccuracy << ", " << denormaliseRMSE(network.testSetAccuracy) << ", " << network.totalPasses << endl;
+							networkListOutput << network.networkId << ", " << network.hiddenNodesCount << ", " << network.totalPasses << ", " << network.passes << ", " << network.stepParameter << ", " << network.accuracy << ", " << denormaliseRMSE(network.accuracy) << ", " << network.testSetAccuracy << ", " << denormaliseRMSE(network.testSetAccuracy) << endl;
 						}
 						networkListOutput.close();
 						break;
@@ -387,19 +387,6 @@ int main()
 				break;
 			}
 
-			case 5: //reoutput networks
-			{
-				//output networks
-				ofstream networkListOutput;
-				networkListOutput.open("output/static/networkoutput.csv");
-				networkListOutput << "NetworkId, hNodes, Total Passes, Effective Passes, Step Parameter, Validation Accuracy, Validation Accuracy (DN), Test Accuracy, Test Accuracy DN" << endl;
-				for (Network network : networkList)
-				{
-					networkListOutput << network.networkId << ", " << network.hiddenNodesCount << ", " << network.totalPasses << ", " << network.passes << ", " << network.stepParameter << ", " << network.accuracy << ", " << denormaliseRMSE(network.accuracy) << ", " << network.testSetAccuracy << ", " << denormaliseRMSE(network.testSetAccuracy) << endl;
-				}
-				networkListOutput.close();
-				break;
-			}
 			case -1:
 			{
 				return 0;

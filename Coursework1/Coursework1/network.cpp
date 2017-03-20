@@ -18,11 +18,11 @@ float randomGen(int n)
 	return ((rand() % (max - min + 1) + min) / float(10000));
 }
 
-float calcAnnealedStepParameter(int epochs, int startingEpochs)
+float calcAnnealedStepParameter(int epochs, int startingEpochs, int hNodes)
 {
 	float p = 0.01f;
 	float q = 0.1f;
-	int r = startingEpochs * 5;
+	int r = startingEpochs * hNodes;
 	float annealedStepParameter = p + (q - p) * (1.0f - (1.0f / (1.0f + exp(10.0f - (20.0f * (float) epochs / (float) r)))));
 	return annealedStepParameter;
 }
@@ -164,11 +164,11 @@ void Network::kFoldsTraining(vector<vector<vector<float>>> inputDataSet, int net
 void Network::kFoldsTrainingBD(vector<vector<vector<float>>> inputDataSet, int networkCount)
 {
 	ofstream accTest;
-	accTest.open("output/kfolds/acctest.csv");
+	accTest.open("output/exp/acctest" + to_string(networkCount) + ".csv");
 	accTest << "epoch, rmse, rmse-dn" << endl;
 
 	ofstream spTest;
-	spTest.open("output/kfolds/sptest.csv");
+	spTest.open("output/exp/sptest" + to_string(networkCount) + ".csv");
 	spTest << "epoch, stepParameter" << endl;
 	
 	totalPasses = 0;
@@ -293,7 +293,7 @@ void Network::kFoldsTrainingBD(vector<vector<vector<float>>> inputDataSet, int n
 		{
 			//annealing
 			int startingEpochs = epochs;
-			stepParameter = calcAnnealedStepParameter(epochs, startingEpochs);
+			stepParameter = calcAnnealedStepParameter(epochs, startingEpochs, hiddenNodesCount);
 			while (!trained)
 			{
 				pastAcc = accuracy;
@@ -342,7 +342,7 @@ void Network::kFoldsTrainingBD(vector<vector<vector<float>>> inputDataSet, int n
 				else
 				{
 					//further training required, reduce stepParameter via annealing
-					stepParameter = calcAnnealedStepParameter(epochs, startingEpochs);
+					stepParameter = calcAnnealedStepParameter(epochs, startingEpochs, hiddenNodesCount);
 					pastAcc = accuracy;
 
 					accTest << epochs << ", " << accuracy << ", " << accuracy*1240.9f << endl;

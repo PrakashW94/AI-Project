@@ -1,2 +1,6 @@
-NetworkId, hNodes, Validation Accuracy (AVG), Validation Accuracy (AVG-DN), Test Accuracy (SET), Test Accuracy (SET-DN), Total Passes
-0, 2, 0.0347482, 43.1191, 0.0351992, 43.6786, 145000
+NetworkId, hNodes, Effective Passes, Total Passes, Step Parameter, Validation Accuracy, Validation Accuracy (DN), Test Accuracy, Test Accuracy DN
+0, 3, 116000, 125000, 0.0100007, 0.0324484, 40.2652, 0.0329382, 40.873
+1, 3, 81000, 89000, 0.0100033, 0.0319992, 39.7078, 0.0329834, 40.9291
+2, 3, 233000, 242000, 0.01, 0.0322351, 40.0006, 0.0329767, 40.9208
+3, 3, 290000, 300000, 0.01, 0.0323947, 40.1986, 0.0325655, 40.4106
+4, 3, 82000, 91000, 0.0100429, 0.0325895, 40.4403, 0.0329815, 40.9267
