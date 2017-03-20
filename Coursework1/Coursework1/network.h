@@ -14,19 +14,20 @@ public:
 	unsigned int passes;
 	int totalPasses;
 	vector<int> kStepPasses;
+	vector<float> kFoldsAccuracy;
 	float accuracy;
 	float testSetAccuracy;
 	float stepParameter = float(0.1);
 	vector<Node> nodeList;
 	vector<vector<float>> weightsMatrix;
-	vector<vector<float>> backupWeightsMatrix;
 
 	//constructor
 	Network(int inputSize, int hiddenNodesCount);
 	void outputWeights();
-	void kFoldsTraining(vector<vector<vector<float>>> inputDataSet, int desiredPasses, int networkCount, bool boldDriver = false);
-	void staticTraining(vector<vector<vector<float>>> inputDataSet, int desiredPasses, int networkCount, bool boldDriver = false);
-	void staticTrainingBD(vector<vector<vector<float>>> inputDataSet, int desiredPasses, int networkCount, bool boldDriver = false);
+	void kFoldsTraining(vector<vector<vector<float>>> inputDataSet, int networkCount);
+	void kFoldsTrainingBD(vector<vector<vector<float>>> inputDataSet, int networkCount);
+	void staticTraining(vector<vector<vector<float>>> inputDataSet, int networkCount);
+	void staticTrainingBD(vector<vector<vector<float>>> inputDataSet, int networkCount);
 	void forwardPass(vector<float> inputRow);
 	void backwardPass(vector<float> inputRow, bool momentum = false);
 	//void run(vector<vector<float>> inputData, int passes);

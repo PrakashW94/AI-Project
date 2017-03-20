@@ -18,6 +18,16 @@ float randomGen(int n)
 	return ((rand() % (max - min + 1) + min) / float(10000));
 }
 
+float calcAnnealedStepParameter(int epochs, int startingEpochs)
+{
+	float p = 0.01f;
+	float q = 0.1f;
+	int r = startingEpochs * 5;
+	float annealedStepParameter = p + (q - p) * (1.0f - (1.0f / (1.0f + exp(10.0f - (20.0f * (float) epochs / (float) r)))));
+	return annealedStepParameter;
+}
+
+//constructor
 Network::Network(int iNodesCount, int hNodesCount)
 {
 	networkId = 0;
@@ -86,80 +96,58 @@ Network::Network(int iNodesCount, int hNodesCount)
 	}
 }
 
-void Network::kFoldsTraining(vector<vector<vector<float>>> inputDataSet, int desiredPasses, int networkCount, bool boldDriver)
+//kfolds training method
+void Network::kFoldsTraining(vector<vector<vector<float>>> inputDataSet, int networkCount)
 {
-	passes = desiredPasses;
 	totalPasses = 0;
-	float pastAcc;
-	int validationSet = 0;
-	while (validationSet < 10)
+	kFoldsAccuracy.resize(10);
+
+	float pastAcc = 1;
+	bool trained = false;
+	int i = 0;
+	while (!trained)
 	{
-		for (unsigned int i = 1; i <= passes; i++)
+		//train using each fold once
+		for (unsigned int validationSet = 0; validationSet < 10; validationSet++)
 		{
-			if (i % 100 == 0)
-			{//validate
-				pastAcc = accuracy;
-				getOutput(inputDataSet[validationSet], false);
-				if (pastAcc < accuracy)
+			for (unsigned int j = 0; j < 10; j++)
+			{
+				if (j != validationSet)
 				{
-					passes = i;
+					runOnce(inputDataSet[j]);
+					
 				}
 			}
-			if (i == passes)
-			{//last pass, create output files
-				kStepPasses.push_back(passes);
-				string filename = "kfolds/hn"+ to_string(hiddenNodesCount) + "/n" + to_string(networkCount) + "/vs" + to_string(validationSet);
-				getOutput(inputDataSet[validationSet], true, filename);
+			//save accuracy of each validation fold
+			getOutput(inputDataSet[validationSet]);
+			kFoldsAccuracy[validationSet] = accuracy;
+			totalPasses++;
+			i++;
+		}
+
+		//validate
+		if (i % 100 == 0)
+		{
+			//calculate current accuracy
+			accuracy = 0;
+			for (float acc : kFoldsAccuracy)
+			{
+				accuracy += acc;
+			}
+			accuracy /= 10;
+			
+			if (pastAcc < accuracy)
+			{
+				passes = i;
+				trained = true;
 			}
 			else
 			{
-				for (unsigned int j = 0; j < inputDataSet.size(); j++)
-				{
-					if (j != validationSet)
-					{
-						if (boldDriver)
-						{//bold driver approach
-							bool improved = false;
-							int loopBreaker = 0;
-							while (!improved && loopBreaker < 5)
-							{
-								float oldError = accuracy;
-								vector<vector<float>> backupWeightsMatrix = weightsMatrix;
-								vector<Node> backupNodeList = nodeList;
-								runOnce(inputDataSet[j]);
-								getOutput(inputDataSet[validationSet]);
-								float newError = accuracy;
-
-								if (newError < oldError)
-								{
-									stepParameter *= 1.1f;
-									if (stepParameter > 10) stepParameter = 10;
-									improved = true;
-									loopBreaker = 0;
-								}
-								else
-								{
-									stepParameter *= 0.5;
-									if (stepParameter < 0.1) stepParameter = 0.1f;
-									weightsMatrix = backupWeightsMatrix;
-									nodeList = backupNodeList;
-									runOnce(inputDataSet[j]);
-									loopBreaker++;
-								}
-							}
-						}
-						else
-						{//normal approach
-							runOnce(inputDataSet[j]);
-						}
-					}
-				}
+				pastAcc = accuracy;
 			}
-			totalPasses++;
 		}
-		validationSet++;
-		passes = desiredPasses;
 	}
+
 	vector<vector<float>> fullDataSet;
 	for (vector<vector<float>> set : inputDataSet)
 	{
@@ -169,31 +157,240 @@ void Network::kFoldsTraining(vector<vector<vector<float>>> inputDataSet, int des
 		}
 	}
 	string filename = "kfolds/hn" + to_string(hiddenNodesCount) + "/n" + to_string(networkCount) + "/full";
-	getOutput(fullDataSet, true, filename, false);
+	getOutput(fullDataSet, true, filename, true);
+}
+
+//kfolds training method with bold driver
+void Network::kFoldsTrainingBD(vector<vector<vector<float>>> inputDataSet, int networkCount)
+{
+	ofstream accTest;
+	accTest.open("output/kfolds/acctest.csv");
+	accTest << "epoch, rmse, rmse-dn" << endl;
+
+	ofstream spTest;
+	spTest.open("output/kfolds/sptest.csv");
+	spTest << "epoch, stepParameter" << endl;
+	
+	totalPasses = 0;
+	kFoldsAccuracy.resize(10);
+	bool trained = false;
+	bool converged = false;
+	float pastAcc = 1;
+	int epochs = 0;
+	float minStepParameter = 0.1f;
+	while (!trained)
+	{
+		if (!converged)
+		{
+			int convergedCounter = 0;
+			//train via bold driver until stepParameter oscilates
+			while (!trained && !converged)
+			{
+				bool improved = false;
+				while (!trained && !converged && !improved)
+				{
+					vector<vector<float>> backupWeightsMatrix = weightsMatrix;
+					vector<Node> backupNodeList = nodeList;
+					float oldError = accuracy;
+					int currentPasses = totalPasses;
+
+					//train for 100 passes
+					for (int k = 0; k < 100; k++)
+					{
+						//train using each fold to validate once
+						for (unsigned int validationSet = 0; validationSet < 10; validationSet++)
+						{
+							for (unsigned int j = 0; j < 10; j++)
+							{
+								if (j != validationSet)
+								{
+									runOnce(inputDataSet[j]);
+								}
+							}
+							totalPasses++;
+							epochs++;
+
+							//save accuracy of each validation fold on last pass of block
+							if (k == 99)
+							{
+								getOutput(inputDataSet[validationSet]);
+								kFoldsAccuracy[validationSet] = accuracy;
+							}
+						}
+						//end training
+					}
+
+					//calculate new error
+					float newError = 0;
+					for (float acc : kFoldsAccuracy)
+					{
+						newError += acc;
+					}
+					newError /= 10;
+
+					//check if improvement is made
+					if (newError < oldError)
+					{
+						//if improved
+						stepParameter *= 1.1f;
+						if (stepParameter > 10) stepParameter = 10;
+						accuracy = newError;
+						improved = true;
+
+						spTest << epochs << ", " << stepParameter << endl;
+					}
+					else
+					{
+						//check whether network has finished training
+						if (stepParameter == minStepParameter)
+						{
+							//no improvement has been made with the minimum stepParameter, network is trained
+							trained = true;
+						}
+						else
+						{
+							//check whether network has converged and min step rate is too large
+							if (stepParameter == minStepParameter*1.1f)
+							{
+								convergedCounter++;
+								if (convergedCounter == 5)
+								{
+									converged = true;
+								}
+							}
+						}
+
+						//reduce stepParameter to a limit
+						stepParameter *= 0.5f;
+						if (stepParameter < minStepParameter) stepParameter = minStepParameter;
+
+						//revert network to last step
+						weightsMatrix = backupWeightsMatrix;
+						nodeList = backupNodeList;
+						accuracy = oldError;
+						totalPasses = currentPasses;
+
+						spTest << epochs << ", " << stepParameter << endl;
+					}
+				}
+
+				if (improved)
+				{
+					if (pastAcc < accuracy)
+					{
+						passes = epochs;
+						trained = true;
+					}
+					else
+					{
+						pastAcc = accuracy;
+						accTest << epochs << ", " << accuracy << ", " << accuracy*1240.9f << endl;
+					}
+				}
+			}
+		}
+		else
+		{
+			//annealing
+			int startingEpochs = epochs;
+			stepParameter = calcAnnealedStepParameter(epochs, startingEpochs);
+			while (!trained)
+			{
+				pastAcc = accuracy;
+
+				//train for 100 passes
+				for (int k = 0; k < 100; k++)
+				{
+					//train using each fold to validate once
+					for (unsigned int validationSet = 0; validationSet < 10; validationSet++)
+					{
+						for (unsigned int j = 0; j < 10; j++)
+						{
+							if (j != validationSet)
+							{
+								runOnce(inputDataSet[j]);
+							}
+						}
+						totalPasses++;
+						epochs++;
+
+						//save accuracy of each validation fold on last pass of block
+						if (k == 99)
+						{
+							getOutput(inputDataSet[validationSet]);
+							kFoldsAccuracy[validationSet] = accuracy;
+						}
+					}
+				}
+				//end training
+
+				//validate, calculate current accuracy
+				accuracy = 0;
+				for (float acc : kFoldsAccuracy)
+				{
+					accuracy += acc;
+				}
+				accuracy /= 10;
+
+				//check if network has improved	
+				if (pastAcc <= accuracy)
+				{
+					//training is complete
+					passes = epochs;
+					trained = true;
+				}
+				else
+				{
+					//further training required, reduce stepParameter via annealing
+					stepParameter = calcAnnealedStepParameter(epochs, startingEpochs);
+					pastAcc = accuracy;
+
+					accTest << epochs << ", " << accuracy << ", " << accuracy*1240.9f << endl;
+					spTest << epochs << ", " << stepParameter << endl;
+				}
+			}
+		}
+	}
+
+	accTest.close();
+	spTest.close();
+
+	vector<vector<float>> fullDataSet;
+	for (vector<vector<float>> set : inputDataSet)
+	{
+		for (vector<float> row : set)
+		{
+			fullDataSet.push_back(row);
+		}
+	}
+	string filename = "kfolds/hn" + to_string(hiddenNodesCount) + "/n" + to_string(networkCount) + "/full";
+	getOutput(fullDataSet, true, filename, true);
 }
 
 //for each set, loop until you've filled the set
 //taking a random index out of the index file in each pass
-void Network::staticTraining(vector<vector<vector<float>>> inputDataSet, int desiredPasses, int networkCount, bool boldDriver)
+void Network::staticTraining(vector<vector<vector<float>>> inputDataSet,  int networkCount)
 {
-	passes = desiredPasses;
 	float pastAcc;
-	ofstream accTest;
-	accTest.open("output/acctest" + to_string(networkCount) + ".csv");
-	accTest << "pass,msqer" << endl;
-	for (unsigned int i = 1; i <= passes; i++)
+	//ofstream accTest;
+	//accTest.open("output/acctest" + to_string(networkCount) + ".csv");
+	//accTest << "pass,msqer" << endl;
+	int i = 0;
+	bool trained = false;
+	while(!trained)
 	{
 		if (i % 100 == 0)
 		{//validate
 			pastAcc = accuracy;
 			getOutput(inputDataSet[1]);
-			accTest << i << ", " << accuracy << endl;
+			//accTest << i << ", " << accuracy << endl;
 			if (pastAcc < accuracy)
 			{
 				passes = i;
+				trained = true;
 			}
 		}
-		if (i == passes)
+		if (trained)
 		{//if last pass, create output files
 			string filename = "static/hn" + to_string(hiddenNodesCount) + "/n" +  to_string(networkCount);
 			getOutput(inputDataSet[1], true, filename);
@@ -201,55 +398,22 @@ void Network::staticTraining(vector<vector<vector<float>>> inputDataSet, int des
 		}
 		else
 		{
-			if (boldDriver)
-			{//bold driver approach
-				bool improved = false;
-				int loopBreaker = 0;
-				while (!improved && loopBreaker < 5)
-				{
-					float oldError = accuracy;
-					vector<vector<float>> backupWeightsMatrix = weightsMatrix;
-					vector<Node> backupNodeList = nodeList;
-					runOnce(inputDataSet[0]);
-					getOutput(inputDataSet[1]);
-					float newError = accuracy;
-
-					if (newError < oldError)
-					{
-						stepParameter *= 1.1f;
-						if (stepParameter > 10) stepParameter = 10;
-						improved = true;
-						loopBreaker = 0;
-					}
-					else
-					{
-						stepParameter *= 0.5;
-						if (stepParameter < 0.1) stepParameter = 0.1f;
-						weightsMatrix = backupWeightsMatrix;
-						nodeList = backupNodeList;
-						runOnce(inputDataSet[0]);
-						loopBreaker++;
-					}
-				}
-			}
-			else
-			{//normal approach
-				runOnce(inputDataSet[0]);
-			}
+			runOnce(inputDataSet[0]);	
 		}
+		i++;
 	}
-	accTest.close();
+	//accTest.close();
 }
 
-void Network::staticTrainingBD(vector<vector<vector<float>>> inputDataSet, int desiredPasses, int networkCount, bool boldDriver)
+void Network::staticTrainingBD(vector<vector<vector<float>>> inputDataSet, int networkCount)
 {
-	passes = desiredPasses;
 	float pastAcc;
-	ofstream accTest;
-	accTest.open("output/acctest" + to_string(networkCount) + ".csv");
-	accTest << "pass,msqer" << endl;
-	unsigned int loopTerminate = (int)(passes / (float)100);
-	for (unsigned int i = 1; i <= loopTerminate; i++)
+	//ofstream accTest;
+	//accTest.open("output/acctest" + to_string(networkCount) + ".csv");
+	//accTest << "pass,msqer" << endl;
+	int i = 0;
+	bool trained = false;
+	while (!trained)
 	{
 		pastAcc = accuracy;
 
@@ -273,32 +437,34 @@ void Network::staticTrainingBD(vector<vector<vector<float>>> inputDataSet, int d
 			}
 			else
 			{
+				if (stepParameter == 0.1f) loopBreaker = 5;
 				stepParameter *= 0.5;
 				if (stepParameter < 0.1) stepParameter = 0.1f;
 				weightsMatrix = backupWeightsMatrix;
 				nodeList = backupNodeList;
+				accuracy = oldError;
 				loopBreaker++;
 			}
 		}
 		
 		//validate
 		
-		//getOutput(inputDataSet[1]);
-		accTest << i << ", " << accuracy << endl;
-		if (pastAcc < accuracy)
+		//accTest << i << ", " << accuracy << endl;
+		if (pastAcc <= accuracy)
 		{
-			loopTerminate = i;
-			passes = i * loopTerminate;
+			passes = i * 100;
+			trained = true;
 		}
 		
-		if (i == loopTerminate)
+		if (trained)
 		{//if last pass, create output files
 			string filename = "static/hn" + to_string(hiddenNodesCount) + "/n" + to_string(networkCount);
 			getOutput(inputDataSet[1], true, filename);
 			getOutput(inputDataSet[2], true, filename + "ts", true);
 		}
+		i++;
 	}
-	accTest.close();
+	//accTest.close();
 }
 
 void Network::outputWeights()
@@ -506,11 +672,11 @@ void Network::calculateAccuracy(vector<float> accuracyMatrix, bool testSet)
 	}
 	if (testSet)
 	{
-		testSetAccuracy = total / accuracyMatrix.size();
+		testSetAccuracy = sqrt(total / accuracyMatrix.size());
 	}
 	else
 	{
-		accuracy = total / accuracyMatrix.size();
+		accuracy = sqrt(total / accuracyMatrix.size());
 	}
 }
 
@@ -526,7 +692,7 @@ void Network::save(string filename)
 	savefile << "iNodes, " << inputNodesCount << endl;
 	savefile << "hNodes, " << hiddenNodesCount << endl;
 	savefile << "passes, " << passes << endl;
-	savefile << "accuracy, " << accuracy << endl;
+	savefile << "accuracy, " << accuracy << endl << endl;
 	for (vector<float> row : weightsMatrix)
 	{
 		for (float weight : row)
