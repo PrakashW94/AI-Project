@@ -22,7 +22,13 @@ float calcAnnealedStepParameter(int epochs, int startingEpochs, int hNodes)
 {
 	float p = 0.01f;
 	float q = 0.1f;
-	int r = startingEpochs * hNodes;
+	int r = startingEpochs;
+	if (hNodes <= 6)
+	{
+		hNodes += 3;
+	}
+	r *= hNodes;
+	
 	float annealedStepParameter = p + (q - p) * (1.0f - (1.0f / (1.0f + exp(10.0f - (20.0f * (float) epochs / (float) r)))));
 	return annealedStepParameter;
 }
@@ -163,13 +169,13 @@ void Network::kFoldsTraining(vector<vector<vector<float>>> inputDataSet, int net
 //kfolds training method with bold driver
 void Network::kFoldsTrainingBD(vector<vector<vector<float>>> inputDataSet, int networkCount)
 {
-	ofstream accTest;
-	accTest.open("output/exp/acctest" + to_string(networkCount) + ".csv");
-	accTest << "epoch, rmse, rmse-dn" << endl;
+	ofstream accOut;
+	accOut.open("output/kfolds/hn" + to_string(hiddenNodesCount) + "/n" + to_string(networkCount) + "/accuracy.csv");
+	accOut << "epoch, rmse, rmse-dn" << endl;
 
-	ofstream spTest;
-	spTest.open("output/exp/sptest" + to_string(networkCount) + ".csv");
-	spTest << "epoch, stepParameter" << endl;
+	ofstream spOut;
+	spOut.open("output/kfolds/hn" + to_string(hiddenNodesCount) + "/n" + to_string(networkCount) + "/stepparameter.csv");
+	spOut << "epoch, stepParameter" << endl;
 	
 	totalPasses = 0;
 	kFoldsAccuracy.resize(10);
@@ -237,7 +243,7 @@ void Network::kFoldsTrainingBD(vector<vector<vector<float>>> inputDataSet, int n
 						accuracy = newError;
 						improved = true;
 
-						spTest << epochs << ", " << stepParameter << endl;
+						spOut << epochs << ", " << stepParameter << endl;
 					}
 					else
 					{
@@ -245,6 +251,7 @@ void Network::kFoldsTrainingBD(vector<vector<vector<float>>> inputDataSet, int n
 						if (stepParameter == minStepParameter)
 						{
 							//no improvement has been made with the minimum stepParameter, network is trained
+							passes = epochs;
 							trained = true;
 						}
 						else
@@ -270,7 +277,7 @@ void Network::kFoldsTrainingBD(vector<vector<vector<float>>> inputDataSet, int n
 						accuracy = oldError;
 						totalPasses = currentPasses;
 
-						spTest << epochs << ", " << stepParameter << endl;
+						spOut << epochs << ", " << stepParameter << endl;
 					}
 				}
 
@@ -284,7 +291,7 @@ void Network::kFoldsTrainingBD(vector<vector<vector<float>>> inputDataSet, int n
 					else
 					{
 						pastAcc = accuracy;
-						accTest << epochs << ", " << accuracy << ", " << accuracy*1240.9f << endl;
+						accOut << epochs << ", " << accuracy << ", " << accuracy*1240.9f << endl;
 					}
 				}
 			}
@@ -345,15 +352,15 @@ void Network::kFoldsTrainingBD(vector<vector<vector<float>>> inputDataSet, int n
 					stepParameter = calcAnnealedStepParameter(epochs, startingEpochs, hiddenNodesCount);
 					pastAcc = accuracy;
 
-					accTest << epochs << ", " << accuracy << ", " << accuracy*1240.9f << endl;
-					spTest << epochs << ", " << stepParameter << endl;
+					accOut << epochs << ", " << accuracy << ", " << accuracy*1240.9f << endl;
+					spOut << epochs << ", " << stepParameter << endl;
 				}
 			}
 		}
 	}
 
-	accTest.close();
-	spTest.close();
+	accOut.close();
+	spOut.close();
 
 	vector<vector<float>> fullDataSet;
 	for (vector<vector<float>> set : inputDataSet)
@@ -372,9 +379,9 @@ void Network::kFoldsTrainingBD(vector<vector<vector<float>>> inputDataSet, int n
 void Network::staticTraining(vector<vector<vector<float>>> inputDataSet,  int networkCount)
 {
 	float pastAcc;
-	//ofstream accTest;
-	//accTest.open("output/acctest" + to_string(networkCount) + ".csv");
-	//accTest << "pass,msqer" << endl;
+	//ofstream accOut;
+	//accOut.open("output/accOut" + to_string(networkCount) + ".csv");
+	//accOut << "pass,msqer" << endl;
 	int i = 0;
 	bool trained = false;
 	while(!trained)
@@ -383,7 +390,7 @@ void Network::staticTraining(vector<vector<vector<float>>> inputDataSet,  int ne
 		{//validate
 			pastAcc = accuracy;
 			getOutput(inputDataSet[1]);
-			//accTest << i << ", " << accuracy << endl;
+			//accOut << i << ", " << accuracy << endl;
 			if (pastAcc < accuracy)
 			{
 				passes = i;
@@ -402,15 +409,15 @@ void Network::staticTraining(vector<vector<vector<float>>> inputDataSet,  int ne
 		}
 		i++;
 	}
-	//accTest.close();
+	//accOut.close();
 }
 
 void Network::staticTrainingBD(vector<vector<vector<float>>> inputDataSet, int networkCount)
 {
 	float pastAcc;
-	//ofstream accTest;
-	//accTest.open("output/acctest" + to_string(networkCount) + ".csv");
-	//accTest << "pass,msqer" << endl;
+	//ofstream accOut;
+	//accOut.open("output/accOut" + to_string(networkCount) + ".csv");
+	//accOut << "pass,msqer" << endl;
 	int i = 0;
 	bool trained = false;
 	while (!trained)
@@ -449,7 +456,7 @@ void Network::staticTrainingBD(vector<vector<vector<float>>> inputDataSet, int n
 		
 		//validate
 		
-		//accTest << i << ", " << accuracy << endl;
+		//accOut << i << ", " << accuracy << endl;
 		if (pastAcc <= accuracy)
 		{
 			passes = i * 100;
@@ -464,7 +471,7 @@ void Network::staticTrainingBD(vector<vector<vector<float>>> inputDataSet, int n
 		}
 		i++;
 	}
-	//accTest.close();
+	//accOut.close();
 }
 
 void Network::outputWeights()
@@ -504,8 +511,6 @@ void Network::getOutput(vector<vector<float>> inputData, bool createOutput, stri
 	for (vector<float> row : inputData)
 	{
 		forwardPass(row);
-
-		
 		int outputNodeId = inputNodesCount + hiddenNodesCount + 1;
 		float correctOutput = row.back();
 		if (createOutput)

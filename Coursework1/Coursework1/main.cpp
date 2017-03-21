@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <windows.h>
 #include <filesystem>
+#include <thread>
 
 #include "network.h"
 
@@ -233,6 +234,23 @@ float denormaliseRMSE(float value)
 	return (1240.9f*value);
 }
 
+void trainNetwork(Network network, vector<vector<vector<float>>> inputData, int networkNumber)
+{
+	network.kFoldsTrainingBD(inputData, networkNumber);
+	network.setId(networkNumber);
+	networkList.push_back(network);
+}
+
+void resetNetworkIds()
+{
+	int i = 0;
+	for (Network network : networkList)
+	{
+		network.setId(i);
+		i++;
+	}
+}
+
 int main()
 {
 	srand( unsigned int (time(NULL)));
@@ -275,7 +293,7 @@ int main()
 				cout << endl;
 				switch (trainingType)
 				{
-					case 1:
+					case 1: //static
 					{
 						for (unsigned int i = hiddenNodesLower; i <= hiddenNodesUpper; i++)
 						{
@@ -312,32 +330,41 @@ int main()
 						break;
 					}
 
-					case 2:
+					case 2: //kfolds
 					{
+						vector<thread> threads;
 						for (unsigned int i = hiddenNodesLower; i <= hiddenNodesUpper; i++)
 						{
 							std::experimental::filesystem::create_directory("output/kfolds/hn" + to_string(i));
 							cout << "Simulation running... training networks with " << i << " hidden nodes." << endl;
-							for (unsigned int j = 0; j < 5; j++)
+
+							vector<vector<vector<vector<float>>>> inputDataSets;
+							unsigned int maxTrained = 12;
+							for (unsigned int j = 0; j < maxTrained; j++)
 							{
-								cout << "Training network " << j << "..." << endl;
-								vector<vector<vector<float>>> inputDataSet = splitInputDataKFolds(inputData);
+								inputDataSets.push_back(splitInputDataKFolds(inputData));
 								std::experimental::filesystem::create_directory("output/kfolds/hn" + to_string(i) + "/n" + to_string(j));
-								Network network(inputSize, i);
-								if (bDriver)
-								{
-									network.kFoldsTrainingBD(inputDataSet, j);
-								}
-								else
-								{
-									network.kFoldsTraining(inputDataSet, j);
-								}
-								network.setId((int)networkList.size());
-								networkList.push_back(network);
+							}
+							
+							for (unsigned int j = 0; j < maxTrained; j++)
+							{
+								threads.push_back(thread(trainNetwork, Network(inputSize, i), inputDataSets[j], j));
+								j++;
+								threads.push_back(thread(trainNetwork, Network(inputSize, i), inputDataSets[j], j));
+								j++;
+								threads.push_back(thread(trainNetwork, Network(inputSize, i), inputDataSets[j], j));
+								threads[0].join();
+								threads[1].join();
+								threads[2].join();
+								threads.pop_back();
+								threads.pop_back();
+								threads.pop_back();
+								cout << j+1 << "/" << to_string(maxTrained) << " Networks trained..." << endl;
 							}
 						}
 						cout << endl << "Simulation Complete." << endl;
 
+						resetNetworkIds();
 						//output networks
 						ofstream networkListOutput;
 						networkListOutput.open("output/kfolds/networkoutput.csv");
