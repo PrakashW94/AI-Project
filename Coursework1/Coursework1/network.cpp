@@ -22,12 +22,7 @@ float calcAnnealedStepParameter(int epochs, int startingEpochs, int hNodes)
 {
 	float p = 0.01f;
 	float q = 0.1f;
-	int r = startingEpochs;
-	if (hNodes <= 6)
-	{
-		hNodes += 3;
-	}
-	r *= hNodes;
+	int r = startingEpochs + (5000 * hNodes);
 	
 	float annealedStepParameter = p + (q - p) * (1.0f - (1.0f / (1.0f + exp(10.0f - (20.0f * (float) epochs / (float) r)))));
 	return annealedStepParameter;
@@ -78,6 +73,9 @@ Network::Network(int iNodesCount, int hNodesCount)
 		//initialise all values to 0
 		weightsMatrix[i][0] = 0;
 	}
+
+	//for use in calculating momentum
+	changeInWeightsMatrix = weightsMatrix;
 
 	//populate weights matrix
 	//input layer -> hidden layer weights
@@ -171,7 +169,7 @@ void Network::kFoldsTrainingBD(vector<vector<vector<float>>> inputDataSet, int n
 {
 	ofstream accOut;
 	accOut.open("output/kfolds/hn" + to_string(hiddenNodesCount) + "/n" + to_string(networkCount) + "/accuracy.csv");
-	accOut << "epoch, rmse, rmse-dn" << endl;
+	accOut << "epoch, rmse, rmse-dn, rsqr, mrse" << endl;
 
 	ofstream spOut;
 	spOut.open("output/kfolds/hn" + to_string(hiddenNodesCount) + "/n" + to_string(networkCount) + "/stepparameter.csv");
@@ -183,7 +181,7 @@ void Network::kFoldsTrainingBD(vector<vector<vector<float>>> inputDataSet, int n
 	bool converged = false;
 	float pastAcc = 1;
 	int epochs = 0;
-	float minStepParameter = 0.1f;
+	float minStepParameter = 0.01f;
 	while (!trained)
 	{
 		if (!converged)
@@ -254,17 +252,19 @@ void Network::kFoldsTrainingBD(vector<vector<vector<float>>> inputDataSet, int n
 							passes = epochs;
 							trained = true;
 						}
-						else
+						
 						{
+							/*
 							//check whether network has converged and min step rate is too large
 							if (stepParameter == minStepParameter*1.1f)
 							{
 								convergedCounter++;
-								if (convergedCounter == 5)
+								if (convergedCounter == 3)
 								{
 									converged = true;
+									//cout << "Bold driver complete, RMSE = " << accuracy*1240.9f << endl;
 								}
-							}
+							}*/
 						}
 
 						//reduce stepParameter to a limit
@@ -281,8 +281,8 @@ void Network::kFoldsTrainingBD(vector<vector<vector<float>>> inputDataSet, int n
 					}
 				}
 
-				if (improved)
-				{
+				//if (improved)
+				//{
 					if (pastAcc < accuracy)
 					{
 						passes = epochs;
@@ -291,9 +291,9 @@ void Network::kFoldsTrainingBD(vector<vector<vector<float>>> inputDataSet, int n
 					else
 					{
 						pastAcc = accuracy;
-						accOut << epochs << ", " << accuracy << ", " << accuracy*1240.9f << endl;
+						accOut << epochs << ", " << accuracy << ", " << accuracy*1240.9f << ", " << rSqrAccuracy << ", " << msre << endl;
 					}
-				}
+				//}
 			}
 		}
 		else
@@ -301,10 +301,9 @@ void Network::kFoldsTrainingBD(vector<vector<vector<float>>> inputDataSet, int n
 			//annealing
 			int startingEpochs = epochs;
 			stepParameter = calcAnnealedStepParameter(epochs, startingEpochs, hiddenNodesCount);
+			pastAcc = accuracy;
 			while (!trained)
 			{
-				pastAcc = accuracy;
-
 				//train for 100 passes
 				for (int k = 0; k < 100; k++)
 				{
@@ -352,8 +351,9 @@ void Network::kFoldsTrainingBD(vector<vector<vector<float>>> inputDataSet, int n
 					stepParameter = calcAnnealedStepParameter(epochs, startingEpochs, hiddenNodesCount);
 					pastAcc = accuracy;
 
-					accOut << epochs << ", " << accuracy << ", " << accuracy*1240.9f << endl;
+					accOut << epochs << ", " << accuracy << ", " << accuracy*1240.9f << ", " << rSqrAccuracy << ", " << msre << endl;
 					spOut << epochs << ", " << stepParameter << endl;
+					//cout << "Annealing step parameter... current sp: " << stepParameter << ", current RMSE: " << accuracy*1240.9f << endl;
 				}
 			}
 		}
@@ -374,8 +374,6 @@ void Network::kFoldsTrainingBD(vector<vector<vector<float>>> inputDataSet, int n
 	getOutput(fullDataSet, true, filename, true);
 }
 
-//for each set, loop until you've filled the set
-//taking a random index out of the index file in each pass
 void Network::staticTraining(vector<vector<vector<float>>> inputDataSet,  int networkCount)
 {
 	float pastAcc;
@@ -454,9 +452,6 @@ void Network::staticTrainingBD(vector<vector<vector<float>>> inputDataSet, int n
 			}
 		}
 		
-		//validate
-		
-		//accOut << i << ", " << accuracy << endl;
 		if (pastAcc <= accuracy)
 		{
 			passes = i * 100;
@@ -494,10 +489,10 @@ Node Network::getNodeById(int id)
 	return nodeList[id - 1];
 }
 
-//for each row in a given dataset, calculate a predicted output and output it
+//for each row in a given dataset, calculate a predicted output
 void Network::getOutput(vector<vector<float>> inputData, bool createOutput, string fileName, bool testSet)
 {
-	vector<float> predictedOutputAccuracy;
+	vector<vector<float>> predictedOutputMatrix;
 	int rowId = 1;
 
 	ofstream outputFile;
@@ -505,26 +500,32 @@ void Network::getOutput(vector<vector<float>> inputData, bool createOutput, stri
 	{
 		string fullFileName = "output/" + fileName + ".csv";
 		outputFile.open(fullFileName);
-		outputFile << "Row, Predicted, Correct" << endl;
+		outputFile << "Row, Correct, Predicted" << endl;
 	}
 
+	int outputNodeId = inputNodesCount + hiddenNodesCount + 1;
 	for (vector<float> row : inputData)
 	{
+		vector<float> rowOutput;
+
 		forwardPass(row);
-		int outputNodeId = inputNodesCount + hiddenNodesCount + 1;
-		float correctOutput = row.back();
+		
+		rowOutput.push_back(row.back());
+		rowOutput.push_back(getNodeById(outputNodeId).nodeOutput);
 		if (createOutput)
 		{//output results
-			outputFile << rowId << ", " << getNodeById(outputNodeId).nodeOutput << ", " << correctOutput << endl;
+			outputFile << rowId << ", " << row.back() << ", " << getNodeById(outputNodeId).nodeOutput << endl;
 		}
-		predictedOutputAccuracy.push_back(correctOutput - getNodeById(outputNodeId).nodeOutput);
 		rowId++;
+		predictedOutputMatrix.push_back(rowOutput);
 	}
 	if (createOutput)
 	{
 		outputFile.close();
 	}
-	calculateAccuracy(predictedOutputAccuracy, testSet);
+	calculateAccuracy(predictedOutputMatrix, testSet);
+	calculateRSqrAccuracy(predictedOutputMatrix);
+	calculateMSRE(predictedOutputMatrix);
 }
 
 //run for a single pass, loop is controlled externally
@@ -611,6 +612,7 @@ void Network::backwardPass(vector<float> inputRow, bool momentum)
 	//update weights
 	if (momentum)
 	{//with momentum
+		/*
 		float newWeight, deltaWeight;
 		float alpha = 0.9f;
 		//input layer -> hidden layer
@@ -641,6 +643,38 @@ void Network::backwardPass(vector<float> inputRow, bool momentum)
 			newWeight = weightsMatrix[0][i] + (stepParameter * getNodeById(i).delta * getNodeById(i).bias);
 			deltaWeight = newWeight - deltaWeight;
 			weightsMatrix[0][i] = newWeight + (alpha * deltaWeight);
+		}*/
+		
+		float oldWeight, deltaWeight;
+		float alpha = 0.9f;
+		//input layer -> hidden layer
+		for (int i = inputNodesLower; i <= inputNodesUpper; i++)
+		{
+			for (int j = hiddenNodesLower; j <= hiddenNodesUpper; j++)
+			{
+				deltaWeight = changeInWeightsMatrix[i][j];
+				oldWeight = weightsMatrix[i][j];
+				weightsMatrix[i][j] = oldWeight + (stepParameter * getNodeById(j).delta * getNodeById(i).nodeOutput) + (alpha * deltaWeight);
+				changeInWeightsMatrix[i][j] = weightsMatrix[i][j] - oldWeight;
+			}
+		}
+
+		//hidden layer -> output layer
+		for (int i = hiddenNodesLower; i <= hiddenNodesUpper; i++)
+		{
+			deltaWeight = changeInWeightsMatrix[i][outputNodeId];
+			oldWeight = weightsMatrix[i][outputNodeId];
+			weightsMatrix[i][outputNodeId] = oldWeight + (stepParameter * getNodeById(outputNodeId).delta * getNodeById(i).nodeOutput) + (alpha * deltaWeight);
+			changeInWeightsMatrix[i][outputNodeId] = weightsMatrix[i][outputNodeId] - oldWeight;
+		}
+
+		//bias weights
+		for (int i = hiddenNodesLower; i <= outputNodeId; i++)
+		{
+			deltaWeight = changeInWeightsMatrix[0][i];
+			oldWeight = weightsMatrix[0][i];
+			weightsMatrix[0][i] = oldWeight + (stepParameter * getNodeById(i).delta * getNodeById(i).bias) + (alpha * deltaWeight);
+			changeInWeightsMatrix[0][i] = weightsMatrix[0][i] - oldWeight;
 		}
 	}
 	else
@@ -668,21 +702,62 @@ void Network::backwardPass(vector<float> inputRow, bool momentum)
 	}
 }
 
-void Network::calculateAccuracy(vector<float> accuracyMatrix, bool testSet)
+void Network::calculateAccuracy(vector<vector<float>> data, bool testSet)
 {
+	//sum of (correct - predicted)^2
 	float total = 0;
-	for (float predictedOutput : accuracyMatrix)
+	for (vector<float> row : data)
 	{
-		total += pow(predictedOutput, 2);
+		total += pow(row.front() - row.back(), 2);
 	}
+	//rmse = sqrt(sum/n)
 	if (testSet)
 	{
-		testSetAccuracy = sqrt(total / accuracyMatrix.size());
+		testSetAccuracy = sqrt(total / data.size());
 	}
 	else
 	{
-		accuracy = sqrt(total / accuracyMatrix.size());
+		accuracy = sqrt(total / data.size());
 	}
+}
+
+void Network::calculateRSqrAccuracy(vector<vector<float>> data)
+{
+	//mean of predicted values
+	float yBar = 0;
+	for (vector<float> row : data)
+	{
+		yBar += row.back();
+	}
+	yBar /= (float) data.size();
+
+	//sum of (correct - predicted)^2
+	float ssResidual = 0;
+	for (vector<float> row : data)
+	{
+		ssResidual += pow(row.front() - row.back(), 2);
+	}
+
+	//sum of (predicted - mean)^2
+	float ssTotal = 0;
+	for (vector<float> row : data)
+	{
+		ssTotal += pow(row.back() - yBar, 2);
+	}
+
+	rSqrAccuracy = 1 - (ssResidual / ssTotal);
+}
+
+void Network::calculateMSRE(vector<vector<float>> data)
+{
+	//sum of (correct - predicted)^2
+	float total = 0;
+	for (vector<float> row : data)
+	{
+		total += pow((row.front() - row.back()) / row.back(), 2);
+	}
+	total /= (float) data.size();
+	msre = total;
 }
 
 void Network::setId(int id)

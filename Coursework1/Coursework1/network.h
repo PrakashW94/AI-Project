@@ -17,9 +17,12 @@ public:
 	vector<float> kFoldsAccuracy;
 	float accuracy;
 	float testSetAccuracy;
+	float rSqrAccuracy;
+	float msre;
 	float stepParameter = float(0.1);
 	vector<Node> nodeList;
 	vector<vector<float>> weightsMatrix;
+	vector<vector<float>> changeInWeightsMatrix;
 
 	//constructor
 	Network(int inputSize, int hiddenNodesCount);
@@ -36,6 +39,8 @@ public:
 	void getOutput(vector<vector<float>> inputData, bool createOutput = false, string fileName = "output2", bool testSet = false);
 	Node getNodeById(int id); //should only be used for read!
 	void setId(int id);
-	void calculateAccuracy(vector<float> accuracyMatrix, bool testSet);
+	void calculateAccuracy(vector<vector<float>> data, bool testSet);
+	void calculateRSqrAccuracy(vector<vector<float>> data);
+	void calculateMSRE(vector<vector<float>> data);
 	void save(string filename);
 };

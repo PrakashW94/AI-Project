@@ -243,11 +243,9 @@ void trainNetwork(Network network, vector<vector<vector<float>>> inputData, int 
 
 void resetNetworkIds()
 {
-	int i = 0;
-	for (Network network : networkList)
+	for (unsigned int i = 0; i < networkList.size(); i++)
 	{
-		network.setId(i);
-		i++;
+		networkList[i].setId(i);
 	}
 }
 
@@ -321,10 +319,10 @@ int main()
 						//output networks
 						ofstream networkListOutput;
 						networkListOutput.open("output/static/networkoutput.csv");
-						networkListOutput << "NetworkId, hNodes, Total Passes, Effective Passes, Step Parameter, Validation Accuracy, Validation Accuracy (DN), Test Accuracy, Test Accuracy DN" << endl;
+						networkListOutput << "NetworkId, hNodes, Total Passes, Effective Passes, Step Parameter, Validation Accuracy, Validation Accuracy (DN), Test Accuracy, Test Accuracy DN, R^2, MRSE" << endl;
 						for (Network network : networkList)
 						{
-							networkListOutput << network.networkId << ", " << network.hiddenNodesCount << ", " << network.totalPasses << ", " << network.passes << ", " << network.stepParameter << ", " << network.accuracy << ", " << denormaliseRMSE(network.accuracy) << ", " << network.testSetAccuracy << ", " << denormaliseRMSE(network.testSetAccuracy) << endl;
+							networkListOutput << network.networkId << ", " << network.hiddenNodesCount << ", " << network.totalPasses << ", " << network.passes << ", " << network.stepParameter << ", " << network.accuracy << ", " << denormaliseRMSE(network.accuracy) << ", " << network.testSetAccuracy << ", " << denormaliseRMSE(network.testSetAccuracy) << ", " << network.rSqrAccuracy << ", " << network.msre << endl;
 						}
 						networkListOutput.close();
 						break;
@@ -339,7 +337,7 @@ int main()
 							cout << "Simulation running... training networks with " << i << " hidden nodes." << endl;
 
 							vector<vector<vector<vector<float>>>> inputDataSets;
-							unsigned int maxTrained = 12;
+							unsigned int maxTrained = 24;
 							for (unsigned int j = 0; j < maxTrained; j++)
 							{
 								inputDataSets.push_back(splitInputDataKFolds(inputData));
@@ -368,10 +366,10 @@ int main()
 						//output networks
 						ofstream networkListOutput;
 						networkListOutput.open("output/kfolds/networkoutput.csv");
-						networkListOutput << "NetworkId, hNodes, Effective Passes, Total Passes, Step Parameter, Validation Accuracy, Validation Accuracy (DN), Test Accuracy, Test Accuracy DN" << endl;
+						networkListOutput << "NetworkId, hNodes, Effective Passes, Total Passes, Step Parameter, Validation RMSE, Validation RMSE (DN), Test RMSE, Test RMSE DN, R^2, MSRE" << endl;
 						for (Network network : networkList)
 						{
-							networkListOutput << network.networkId << ", " << network.hiddenNodesCount << ", " << network.totalPasses << ", " << network.passes << ", " << network.stepParameter << ", " << network.accuracy << ", " << denormaliseRMSE(network.accuracy) << ", " << network.testSetAccuracy << ", " << denormaliseRMSE(network.testSetAccuracy) << endl;
+							networkListOutput << network.networkId << ", " << network.hiddenNodesCount << ", " << network.totalPasses << ", " << network.passes << ", " << network.stepParameter << ", " << network.accuracy << ", " << denormaliseRMSE(network.accuracy) << ", " << network.testSetAccuracy << ", " << denormaliseRMSE(network.testSetAccuracy) << ", " << network.rSqrAccuracy << ", " << network.msre << endl;
 						}
 						networkListOutput.close();
 						break;

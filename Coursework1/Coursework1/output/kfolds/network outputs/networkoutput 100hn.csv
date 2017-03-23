@@ -1,0 +1,2 @@
+NetworkId, hNodes, Effective Passes, Total Passes, Step Parameter, Validation RMSE, Validation RMSE (DN), Test RMSE, Test RMSE DN, R^2, MSRE
+0, 100, 625000, 650000, 0.0999908, 0.018631, 23.1192, 0.0184711, 22.9207, 0.967981, 0.0084083

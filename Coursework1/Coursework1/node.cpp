@@ -20,11 +20,13 @@ void Node::setNodeOutput(float value)
 	}
 }
 
+//function to calculate delta for output node
 void Node::setDeltaOutput(float correctValue)
 {
 	delta = (correctValue - nodeOutput) * (nodeOutput * (1 - nodeOutput));
 }
 
+//function to calculate delta for hidden node node
 void Node::setDeltaHidden(float weight, float deltaOutput)
 {
 	delta = weight * deltaOutput * (nodeOutput * (1 - nodeOutput));
